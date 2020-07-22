@@ -135,8 +135,8 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       _, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
                                        q_t_selector)
       loss = losses.huber(extra.td_error, self._huber_loss_parameter)
-      cql_loss = loss + self._alpha * (tf.reduce_logsumexp(q_tm1, axis=1)
-                                       - tf.reduce_sum(probs*q_tm1, 1))
+      cql_loss = loss + self._alpha * (tf.reduce_logsumexp(q_tm1, axis=1))
+                                       #- tf.reduce_sum(probs*q_tm1, 1))
       # # Get the importance weights.
       # importance_weights = 1. / probs  # [B]
       # importance_weights **= self._importance_sampling_exponent

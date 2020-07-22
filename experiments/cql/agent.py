@@ -22,10 +22,10 @@ from acme import specs
 from acme.adders import reverb as adders
 from acme.agents import agent
 from acme.agents.tf import actors
-from acme.agents.tf.cql import learning
 from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import loggers
+from cql.learning import CQLLearner
 import reverb
 import sonnet as snt
 import tensorflow as tf
@@ -135,7 +135,7 @@ class CQL(agent.Agent):
     actor = actors.FeedForwardActor(policy_network, adder)
 
     # The learner updates the parameters (and initializes them).
-    learner = learning.CQLLearner(
+    learner = CQLLearner(
         network=network,
         target_network=target_network,
         discount=discount,

@@ -4,7 +4,7 @@ import pyvirtualdisplay
 
 import gym
 from gym_minigrid.wrappers import FullyObsWrapper
-from experiments.custom_env_wrappers import ImgFlatObsWrapper, SinglePrecisionWrapper
+from custom_env_wrappers import ImgFlatObsWrapper, SinglePrecisionWrapper
 
 # Set up a virtual display for rendering OpenAI gym environments.
 display = pyvirtualdisplay.Display(visible=0, size=(1400, 900)).start()
@@ -18,8 +18,8 @@ from acme.utils import loggers
 from acme import specs
 from acme.utils.loggers.tf_summary import TFSummaryLogger
 
-from experiments.cql.agent import CQL
-
+from cql.agent import CQL
+from acme import EnvironmentLoop
 import sonnet as snt
 
 # Bsuite flags
@@ -56,8 +56,8 @@ def main(_):
   disp = loggers.Dispatcher([terminal_logger, tb_logger])
 
   # Run the environment loop.
-  loop = acme.EnvironmentLoop(environment, agent)
-  loop.run(num_episodes=environment.bsuite_num_episodes)  # pytype: disable=attribute-error
+  loop = EnvironmentLoop(environment, agent, logger=disp)
+  loop.run(num_episodes=1000)  # pytype: disable=attribute-error
 
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@ from acme import specs
 from acme import types
 from acme.wrappers import base
 
+from gym import spaces
 import dm_env
 import numpy as np
 import tree
