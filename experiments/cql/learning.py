@@ -51,6 +51,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       dataset: tf.data.Dataset,
       huber_loss_parameter: float = 1.,
       alpha: float = 5.0,
+      epsilon: float = 0.3,
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
@@ -83,6 +84,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     self._target_network = target_network
     self._optimizer = snt.optimizers.Adam(learning_rate)
     self._alpha = tf.constant(alpha)
+    self._eps = epsilon
     self._replay_client = replay_client
 
     # Internalise the hyperparameters.
@@ -135,8 +137,17 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       _, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
                                        q_t_selector)
       loss = losses.huber(extra.td_error, self._huber_loss_parameter)
-      cql_loss = loss + self._alpha * (tf.reduce_logsumexp(q_tm1, axis=1))
-                                       #- tf.reduce_sum(probs*q_tm1, 1))
+
+      best_action = tf.argmax(q_t_selector, 1, output_type=tf.int32)
+      exp_probs = tf.ones(q_t_selector.shape, dtype=q_t_selector.dtype) \
+                  * (self._eps / q_t_selector.shape[-1])
+      greedy_probs = tf.one_hot(best_action, tf.shape(q_t_selector)[-1],
+                                dtype=q_t_selector.dtype) * (1-self._eps)
+      policy_probs = exp_probs + greedy_probs
+
+      cql_loss = loss + self._alpha * (tf.reduce_logsumexp(q_t_selector, axis=1)
+                                       - tf.reduce_sum(policy_probs * q_t_selector, axis=1))
+
       # # Get the importance weights.
       # importance_weights = 1. / probs  # [B]
       # importance_weights **= self._importance_sampling_exponent
