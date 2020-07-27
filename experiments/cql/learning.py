@@ -140,13 +140,16 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
       n_actions = q_tm1.shape[-1]
 
+      # create a mask of epsilon-greedy policy probabilities for the batch
       best_action = tf.argmax(q_tm1, 1, output_type=tf.int32)
-      exp_probs = tf.ones(q_tm1.shape, dtype=q_tm1.dtype) * (self._eps / n_actions)
+      explore_probs = tf.ones(q_tm1.shape, dtype=q_tm1.dtype) * (self._eps / n_actions)
       greedy_probs = tf.one_hot(best_action, n_actions, dtype=q_tm1.dtype) * (1-self._eps)
-      policy_probs = exp_probs + greedy_probs
+      policy_probs = explore_probs + greedy_probs
 
-      cql_loss = loss + self._alpha * (tf.reduce_logsumexp(q_tm1, axis=1)
-                                       - tf.reduce_sum(policy_probs * q_tm1, axis=1))
+      push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
+      push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
+
+      cql_loss = loss + self._alpha * (push_down - push_up)
 
       cql_loss = tf.reduce_mean(cql_loss, axis=[0])  # []
 
@@ -169,7 +172,11 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Report loss & statistics for logging.
     fetches = {
-        'loss': cql_loss,
+        'loss': loss,
+        'push_up': push_up,
+        'push_down': push_down,
+        'regularizer': push_down - push_up,
+        'cql_loss': cql_loss
     }
 
     return fetches
