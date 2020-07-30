@@ -57,7 +57,7 @@ class CQL(agent.Agent):
       epsilon: tf.Tensor = None,
       learning_rate: float = 1e-3,
       discount: float = 0.99,
-      cql_alpha: float = 1,
+      cql_alpha: float = 1.,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
       checkpoint_subpath: str = '~/acme/',

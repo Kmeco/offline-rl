@@ -50,7 +50,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       target_update_period: int,
       dataset: tf.data.Dataset,
       huber_loss_parameter: float = 1.,
-      cql_alpha: float = 5.0,
+      cql_alpha: float = 1.0,
       epsilon: float = 0.3,
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
@@ -83,7 +83,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     self._network = network
     self._target_network = target_network
     self._optimizer = snt.optimizers.Adam(learning_rate)
-    self._alpha = tf.constant(cql_alpha)
+    self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
     self._eps = epsilon
     self._replay_client = replay_client
 
@@ -176,9 +176,9 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
         'push_up': tf.reduce_mean(push_up, axis=0),
         'push_down': tf.reduce_mean(push_down, axis=0),
         'regularizer': tf.reduce_mean(push_down - push_up, axis=0),
-        'cql_loss': cql_loss
+        'cql_loss': cql_loss,
+        'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0)
     }
-
     return fetches
 
   def step(self):
