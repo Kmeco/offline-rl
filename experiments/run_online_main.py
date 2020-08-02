@@ -31,7 +31,7 @@ FLAGS = flags.FLAGS
 
 def main(_):
   # Create an environment and grab the spec.
-  raw_env = gym.make(FLAGS.environment_name)
+  raw_env = gym.make(FLAGS.environment_name)    
   raw_env.action_space.n = 3
   raw_env.max_steps = 500
   environment = ImgFlatObsWrapper(FullyObsWrapper(raw_env))

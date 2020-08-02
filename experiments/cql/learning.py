@@ -52,6 +52,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       huber_loss_parameter: float = 1.,
       cql_alpha: float = 1.0,
       epsilon: float = 0.3,
+      empirical_policy: dict = None,
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
@@ -85,6 +86,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     self._optimizer = snt.optimizers.Adam(learning_rate)
     self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
     self._eps = epsilon
+    self._emp_policy = empirical_policy
     self._replay_client = replay_client
 
     # Internalise the hyperparameters.
@@ -140,11 +142,15 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
       n_actions = q_tm1.shape[-1]
 
-      # create a mask of epsilon-greedy policy probabilities for the batch
-      best_action = tf.argmax(q_tm1, 1, output_type=tf.int32)
-      explore_probs = tf.ones(q_tm1.shape, dtype=q_tm1.dtype) * (self._eps / n_actions)
-      greedy_probs = tf.one_hot(best_action, n_actions, dtype=q_tm1.dtype) * (1-self._eps)
-      policy_probs = explore_probs + greedy_probs
+      if self._emp_policy is None:
+        # create a mask of epsilon-greedy policy probabilities for the batch
+        best_action = tf.argmax(q_tm1, 1, output_type=tf.int32)
+        explore_probs = tf.ones(q_tm1.shape, dtype=q_tm1.dtype) * (self._eps / n_actions)
+        greedy_probs = tf.one_hot(best_action, n_actions, dtype=q_tm1.dtype) * (1-self._eps)
+        policy_probs = explore_probs + greedy_probs
+      else:
+        counts = np.array([self._emp_policy[o] for o in o_tm1])
+        policy_probs = tf.convert_to_tensor(counts / np.sum(counts, axis=1), dtype=q_tm1.dtype)
 
       push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
       push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
