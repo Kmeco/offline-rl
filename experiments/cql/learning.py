@@ -149,7 +149,8 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
         greedy_probs = tf.one_hot(best_action, n_actions, dtype=q_tm1.dtype) * (1-self._eps)
         policy_probs = explore_probs + greedy_probs
       else:
-        counts = np.array([self._emp_policy[o] for o in o_tm1])
+        # counts = np.array([self._emp_policy[o] for o in o_tm1])
+        counts = tf.map_fn(fn=lambda o: self._emp_policy[o], elems=o_tm1)
         policy_probs = tf.convert_to_tensor(counts / np.sum(counts, axis=1), dtype=q_tm1.dtype)
 
       push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
