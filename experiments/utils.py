@@ -143,7 +143,8 @@ class DemonstrationRecorder:
                 'shapes': self.shapes,
                 'policy': self.empirical_policy}
 
-        with open('spec.pkl', 'wb') as f:
+        spec_file = os.path.join(directory, 'spec.pkl')
+        with open(spec_file, 'wb') as f:
             pickle.dump(spec, f)
 
         for i, _ in enumerate(self.ds.element_spec):

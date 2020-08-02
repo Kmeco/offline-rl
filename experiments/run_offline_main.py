@@ -52,7 +52,7 @@ def main(_):
     environment_spec = specs.make_environment_spec(environment)
 
     # Load demonstration dataset.
-    dataset, empirical_policy = load_tf_dataset()
+    dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
     dataset = dataset.map(lambda *x:
                           n_step_transition_from_episode(*x, n_step=FLAGS.n_step_returns,
                                                          additional_discount=1.))
