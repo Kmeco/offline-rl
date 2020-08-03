@@ -115,7 +115,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     # fill the replay buffer.
     self._timestamp = None
 
-  @tf.function
+  # @tf.function
   def _step(self) -> Dict[str, tf.Tensor]:
     """Do a step of SGD and update the priorities."""
 
@@ -150,8 +150,8 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
         policy_probs = explore_probs + greedy_probs
       else:
         # counts = np.array([self._emp_policy[o] for o in o_tm1])
-        counts = tf.map_fn(fn=lambda o: self._emp_policy[o], elems=o_tm1)
-        policy_probs = tf.convert_to_tensor(counts / np.sum(counts, axis=1), dtype=q_tm1.dtype)
+        counts = tf.map_fn(fn=lambda o: self._emp_policy[str(o.numpy())], elems=o_tm1)
+        policy_probs = tf.convert_to_tensor(counts / tf.reshape(np.sum(counts, axis=1), (-1, 1)), dtype=q_tm1.dtype)
 
       push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
       push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy

@@ -34,10 +34,11 @@ flags.DEFINE_string('dataset_dir', 'datasets', 'Directory containing an offline 
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for the epsilon greedy in the env.')
 flags.DEFINE_float('learning_rate', 1e-3, 'Learning rate.')
+flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
 flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
 flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
-flags.DEFINE_string('epochs', 100, 'Number of epochs to run (samples only 1 transition per episode in each epoch).')
+flags.DEFINE_integer('epochs', 100, 'Number of epochs to run (samples only 1 transition per episode in each epoch).')
 FLAGS = flags.FLAGS
 
 
@@ -100,8 +101,8 @@ def main(_):
         target_network=target_network,
         discount=0.99,
         importance_sampling_exponent=0.2,
-        learning_rate=1e-3,
-        cql_alpha=0.01,
+        learning_rate=FLAGS.learning_rate,
+        cql_alpha=FLAGS.cql_alpha,
         target_update_period=100,
         empirical_policy=empirical_policy,
         dataset=dataset,
