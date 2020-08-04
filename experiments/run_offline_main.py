@@ -11,7 +11,7 @@ from tqdm import tqdm
 import gym
 from acme.agents.tf import actors
 from gym_minigrid.wrappers import FullyObsWrapper
-from custom_env_wrappers import ImgFlatObsWrapper, SinglePrecisionWrapper
+from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
 
 from acme.wrappers import gym_wrapper
 from acme import EnvironmentLoop
@@ -51,7 +51,7 @@ def main(_):
     raw_env.max_steps = 500
     environment = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
     environment = gym_wrapper.GymWrapper(environment)
-    environment = SinglePrecisionWrapper(environment)
+    environment = CustomSinglePrecisionWrapper(environment)
     environment_spec = specs.make_environment_spec(environment)
 
     # Load demonstration dataset.
