@@ -1,10 +1,13 @@
 #@title Import modules.
 #python3
+import os
+import time
+
 import pyvirtualdisplay
 
 import gym
 from gym_minigrid.wrappers import FullyObsWrapper
-from custom_env_wrappers import ImgFlatObsWrapper, SinglePrecisionWrapper
+from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
 
 # Set up a virtual display for rendering OpenAI gym environments.
 display = pyvirtualdisplay.Display(visible=0, size=(1400, 900)).start()
@@ -25,18 +28,41 @@ import sonnet as snt
 # Bsuite flags
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
 flags.DEFINE_string('results_dir', '/tmp/bsuite', 'CSV results directory.')
+flags.DEFINE_string('logs_dir', 'logs-CQL-0', 'TB logs directory')
 flags.DEFINE_boolean('overwrite', False, 'Whether to overwrite csv results.')
+flags.DEFINE_float('epsilon', 0.3, 'Epsilon for e-greedy actor policy.')
+flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
+
 FLAGS = flags.FLAGS
+
+
+#util
+def _build_custom_loggers():
+    logs_dir = os.path.join(FLAGS.logs_dir, str(int(time.time())))
+    terminal_logger = loggers.TerminalLogger(label='learner', time_delta=10)
+    tb_logger = TFSummaryLogger(logdir=logs_dir, label='learner')
+    disp = loggers.Dispatcher([terminal_logger, tb_logger])
+
+    terminal_logger = loggers.TerminalLogger(label='Loop', time_delta=10)
+    tb_logger = TFSummaryLogger(logdir=logs_dir, label='Loop')
+    disp_loop = loggers.Dispatcher([terminal_logger, tb_logger])
+
+    return disp, disp_loop
+
+
+def _build_environment(n_actions=3, max_steps=500):
+    raw_env = gym.make(FLAGS.environment_name)
+    raw_env.action_space.n = n_actions
+    raw_env.max_steps = max_steps
+    env = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
+    env = gym_wrapper.GymWrapper(env)
+    env = CustomSinglePrecisionWrapper(env)
+    return env
 
 
 def main(_):
   # Create an environment and grab the spec.
-  raw_env = gym.make(FLAGS.environment_name)    
-  raw_env.action_space.n = 3
-  raw_env.max_steps = 500
-  environment = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
-  environment = gym_wrapper.GymWrapper(environment)
-  environment = SinglePrecisionWrapper(environment)
+  environment = _build_environment()
   environment_spec = specs.make_environment_spec(environment)
 
   network = snt.Sequential([
@@ -44,21 +70,20 @@ def main(_):
       snt.nets.MLP([50, 50, environment_spec.actions.num_values])
   ])
 
+  disp, disp_loop = _build_custom_loggers()
+
   # Construct the agent.
   agent = CQL(
       environment_spec=environment_spec,
       network=network,
-      epsilon=0.3,
-      logger=loggers.TerminalLogger(label='Learner', time_delta=10.))
-
-  terminal_logger = loggers.TerminalLogger(label='terminal', time_delta=10)
-  tb_logger = TFSummaryLogger(logdir='logsV2', label='summary')
-  disp = loggers.Dispatcher([terminal_logger, tb_logger])
+      epsilon=FLAGS.epsilon,
+      cql_alpha=FLAGS.cql_alpha,
+      logger=disp)
 
   # Run the environment loop.
-  loop = EnvironmentLoop(environment, agent, logger=disp)
+  loop = EnvironmentLoop(environment, agent, logger=disp_loop)
   loop.run(num_episodes=1000)  # pytype: disable=attribute-error
-
+  agent.save()
 
 if __name__ == '__main__':
   app.run(main)

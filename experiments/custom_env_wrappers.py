@@ -12,7 +12,7 @@ import tree
 import gym
 
 
-class SinglePrecisionWrapper(base.EnvironmentWrapper):
+class CustomSinglePrecisionWrapper(base.EnvironmentWrapper):
   """Wrapper which converts environments from double- to single-precision."""
 
   def _convert_timestep(self, timestep: dm_env.TimeStep) -> dm_env.TimeStep:

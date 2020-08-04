@@ -168,3 +168,6 @@ class CQL(agent.Agent):
     super().update()
     if self._checkpointer is not None:
       self._checkpointer.save()
+
+  def save(self):
+    self._learner.save()
