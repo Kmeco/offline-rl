@@ -7,7 +7,7 @@ from acme import specs
 
 
 from gym_minigrid.wrappers import FullyObsWrapper
-from custom_env_wrappers import ImgFlatObsWrapper, SinglePrecisionWrapper
+from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
 
 
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
@@ -24,7 +24,7 @@ def main(_):
     raw_env.max_steps = FLAGS.n_episode_steps
     environment = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
     environment = gym_wrapper.GymWrapper(environment)
-    environment = SinglePrecisionWrapper(environment)
+    environment = CustomSinglePrecisionWrapper(environment)
     environment_spec = specs.make_environment_spec(environment)
 
     actor = RandomActor(environment_spec)
