@@ -206,6 +206,10 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       self._snapshotter.save()
     self._logger.write(result)
 
+  def save(self):
+    if self._snapshotter is not None:
+      self._snapshotter.save(force=True)
+
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)
 

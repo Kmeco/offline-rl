@@ -118,6 +118,7 @@ def main(_):
             learner.step()
         learner_counter.increment(learner_steps=FLAGS.evaluate_every)
         eval_loop.run(FLAGS.evaluation_episodes)
+    learner.save()
 
 
 if __name__ == '__main__':
