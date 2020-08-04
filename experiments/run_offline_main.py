@@ -1,6 +1,8 @@
 #@title Import modules.
 #python3
 import copy
+import os
+import time
 
 from absl import app
 from absl import flags
@@ -82,8 +84,9 @@ def main(_):
     tf2_utils.create_variables(network, [environment_spec.observations])
     tf2_utils.create_variables(target_network, [environment_spec.observations])
 
+    logs_dir = os.path.join(FLAGS.logs_dir, str(int(time.time())))
     terminal_logger = loggers.TerminalLogger(label='evaluation', time_delta=10)
-    tb_logger = TFSummaryLogger(logdir=FLAGS.logs_dir, label='evaluation')
+    tb_logger = TFSummaryLogger(logdir=logs_dir, label='evaluation')
     disp_loop = loggers.Dispatcher([terminal_logger, tb_logger])
 
     eval_loop = EnvironmentLoop(
@@ -93,7 +96,7 @@ def main(_):
         logger=disp_loop)
 
     terminal_logger = loggers.TerminalLogger(label='learner', time_delta=10)
-    tb_logger = TFSummaryLogger(logdir=FLAGS.logs_dir, label='learner')
+    tb_logger = TFSummaryLogger(logdir=logs_dir, label='learner')
     disp = loggers.Dispatcher([terminal_logger, tb_logger])
 
     learner = CQLLearner(
