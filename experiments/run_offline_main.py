@@ -24,7 +24,6 @@ import tensorflow as tf
 import sonnet as snt
 from utils import n_step_transition_from_episode, load_tf_dataset
 
-from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from cql.learning import CQLLearner
 
@@ -44,14 +43,33 @@ flags.DEFINE_integer('epochs', 100, 'Number of epochs to run (samples only 1 tra
 FLAGS = flags.FLAGS
 
 
+#utils
+def _build_custom_loggers():
+    logs_dir = os.path.join(FLAGS.logs_dir, str(int(time.time())))
+    terminal_logger = loggers.TerminalLogger(label='learner', time_delta=10)
+    tb_logger = TFSummaryLogger(logdir=logs_dir, label='learner')
+    disp = loggers.Dispatcher([terminal_logger, tb_logger])
+
+    terminal_logger = loggers.TerminalLogger(label='Loop', time_delta=10)
+    tb_logger = TFSummaryLogger(logdir=logs_dir, label='Loop')
+    disp_loop = loggers.Dispatcher([terminal_logger, tb_logger])
+
+    return disp, disp_loop
+
+
+def _build_environment(n_actions=3, max_steps=500):
+    raw_env = gym.make(FLAGS.environment_name)
+    raw_env.action_space.n = n_actions
+    raw_env.max_steps = max_steps
+    env = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
+    env = gym_wrapper.GymWrapper(env)
+    env = CustomSinglePrecisionWrapper(env)
+    return env
+
+
 def main(_):
     # Create an environment and grab the spec.
-    raw_env = gym.make(FLAGS.environment_name)
-    raw_env.action_space.n = 3
-    raw_env.max_steps = 500
-    environment = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
-    environment = gym_wrapper.GymWrapper(environment)
-    environment = CustomSinglePrecisionWrapper(environment)
+    environment = _build_environment()
     environment_spec = specs.make_environment_spec(environment)
 
     # Load demonstration dataset.
@@ -84,20 +102,13 @@ def main(_):
     tf2_utils.create_variables(network, [environment_spec.observations])
     tf2_utils.create_variables(target_network, [environment_spec.observations])
 
-    logs_dir = os.path.join(FLAGS.logs_dir, str(int(time.time())))
-    terminal_logger = loggers.TerminalLogger(label='evaluation', time_delta=10)
-    tb_logger = TFSummaryLogger(logdir=logs_dir, label='evaluation')
-    disp_loop = loggers.Dispatcher([terminal_logger, tb_logger])
+    disp, disp_loop = _build_custom_loggers()
 
     eval_loop = EnvironmentLoop(
         environment=environment,
         actor=evaluation_network,
         counter=counter,
         logger=disp_loop)
-
-    terminal_logger = loggers.TerminalLogger(label='learner', time_delta=10)
-    tb_logger = TFSummaryLogger(logdir=logs_dir, label='learner')
-    disp = loggers.Dispatcher([terminal_logger, tb_logger])
 
     learner = CQLLearner(
         network=network,
@@ -122,5 +133,5 @@ def main(_):
 
 
 if __name__ == '__main__':
-  app.run(main)
+    app.run(main)
 

@@ -184,7 +184,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
         'push_down': tf.reduce_mean(push_down, axis=0),
         'regularizer': tf.reduce_mean(push_down - push_up, axis=0),
         'cql_loss': cql_loss,
-        'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0)
+        'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0)  #TODO: add target Q, sclar policy probs, max Q and averge Q
     }
     return fetches
 

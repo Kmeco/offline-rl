@@ -32,6 +32,8 @@ flags.DEFINE_string('logs_dir', 'logs-CQL-0', 'TB logs directory')
 flags.DEFINE_boolean('overwrite', False, 'Whether to overwrite csv results.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for e-greedy actor policy.')
 flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
+flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
+flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calculating TD(n)')
 
 FLAGS = flags.FLAGS
 
@@ -76,13 +78,14 @@ def main(_):
   agent = CQL(
       environment_spec=environment_spec,
       network=network,
+      n_step=FLAGS.n_step,
       epsilon=FLAGS.epsilon,
       cql_alpha=FLAGS.cql_alpha,
       logger=disp)
 
   # Run the environment loop.
   loop = EnvironmentLoop(environment, agent, logger=disp_loop)
-  loop.run(num_episodes=1000)  # pytype: disable=attribute-error
+  loop.run(num_episodes=FLAGS.n_episodes)  # pytype: disable=attribute-error
   agent.save()
 
 if __name__ == '__main__':
