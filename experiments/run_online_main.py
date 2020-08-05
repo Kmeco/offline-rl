@@ -78,7 +78,7 @@ def main(_):
   agent = CQL(
       environment_spec=environment_spec,
       network=network,
-      n_step=FLAGS.n_step,
+      n_step=FLAGS.n_steps,
       epsilon=FLAGS.epsilon,
       cql_alpha=FLAGS.cql_alpha,
       logger=disp)
