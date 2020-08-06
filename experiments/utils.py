@@ -86,7 +86,6 @@ class DemonstrationRecorder:
         self._env_spec = specs.make_environment_spec(env)
         self.agent = agent
         self.empirical_policy = {}
-        self._prev_observation = None
 
     def collect_episode(self):
         """ collects tuples:
@@ -97,14 +96,14 @@ class DemonstrationRecorder:
                 extras: Dictionary with extra features."""
         self._ep_buffer = []
         timestep = self.env.reset()
-        self._prev_observation = timestep.observation
 
         while not timestep.last():
             action = self.agent.select_action(timestep.observation)
-            timestep = self.env.step(action)
             self._step(timestep, action)
-            self._update_policy_counts(self._prev_observation, action)
-            self._prev_observation = timestep.observation
+            self._update_policy_counts(timestep.observation, action)
+            timestep = self.env.step(action)
+
+        self._step(timestep, np.zeros_like(action))
 
         self._episodes.append(_nested_stack(self._ep_buffer))
 
@@ -119,7 +118,7 @@ class DemonstrationRecorder:
             self.empirical_policy[str(observation)] = np.zeros(self._env_spec.actions.num_values)
 
     def _step(self, timestep, action):
-        self._ep_buffer.append((self._prev_observation,
+        self._ep_buffer.append((timestep.observation,
                                 action,
                                 timestep.reward,
                                 timestep.discount))

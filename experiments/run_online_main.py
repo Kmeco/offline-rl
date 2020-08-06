@@ -3,15 +3,9 @@
 import os
 import time
 
-import pyvirtualdisplay
-
 import gym
 from gym_minigrid.wrappers import FullyObsWrapper
 from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
-
-# Set up a virtual display for rendering OpenAI gym environments.
-display = pyvirtualdisplay.Display(visible=0, size=(1400, 900)).start()
-
 
 from absl import app
 from absl import flags
