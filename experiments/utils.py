@@ -118,9 +118,10 @@ class DemonstrationRecorder:
             self.empirical_policy[str(observation)] = np.zeros(self._env_spec.actions.num_values)
 
     def _step(self, timestep, action):
+        reward = np.array(timestep.reward or 0, np.float32)
         self._ep_buffer.append((timestep.observation,
                                 action,
-                                timestep.reward,
+                                reward,
                                 timestep.discount))
 
     def make_tf_dataset(self):

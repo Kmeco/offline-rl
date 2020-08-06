@@ -171,3 +171,4 @@ class CQL(agent.Agent):
 
   def save(self):
     self._learner.save()
+    self._checkpointer.save(force=True)
