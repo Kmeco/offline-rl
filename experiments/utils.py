@@ -119,7 +119,7 @@ class DemonstrationRecorder:
 
     def _step(self, timestep, action):
         reward = np.array(timestep.reward or 0, np.float32)
-        discount = tf.constant(timestep.discount or 1, tf.float32)
+        discount = tf.constant(timestep.discount if timestep.discount is not None else 1, tf.float32)
         self._ep_buffer.append((timestep.observation,
                                 action,
                                 reward,
