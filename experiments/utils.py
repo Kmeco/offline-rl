@@ -37,7 +37,7 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
 
     max_index = tf.shape(rewards)[0] - 1
     first = tf.random.uniform(
-      shape=(), minval=0, maxval=max_index, dtype=tf.int32)
+      shape=(), minval=0, maxval=max_index-1, dtype=tf.int32)
     last = tf.minimum(first + n_step, max_index)
 
     o_t = tree.map_structure(operator.itemgetter(first), observations)
