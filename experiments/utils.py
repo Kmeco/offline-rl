@@ -37,7 +37,7 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
 
     max_index = tf.shape(rewards)[0] - 1
     first = tf.random.uniform(
-      shape=(), minval=0, maxval=max_index-1, dtype=tf.int32)
+      shape=(), minval=0, maxval=max_index, dtype=tf.int32)
     last = tf.minimum(first + n_step, max_index)
 
     o_t = tree.map_structure(operator.itemgetter(first), observations)
@@ -49,14 +49,14 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
     # 1, g, ..., g^{n-1}.
     additional_discounts = tf.pow(additional_discount, discount_range)
     # 1, d_t, d_t * d_{t+1}, ..., d_t * ... * d_{t+n-2}.
-    d_t = discounts[last]
-    discounts = tf.math.cumprod(discounts[first:last])
+    d_t = discounts[last-1] * additional_discount ** tf.cast((last - first), tf.float32)
+    discounts = tf.concat([[1.], tf.math.cumprod(discounts[first:last-1])], 0)
     # 1, g * d_t, ..., g^{n-1} * d_t * ... * d_{t+n-2}.
     discounts *= additional_discounts
     # r_t + g * d_t * r_{t+1} + ... + g^{n-1} * d_t * ... * d_{t+n-2} * r_{t+n-1}
     # We have to shift rewards by one so last=max_index corresponds to transitions
     # that include the last reward.
-    r_t = tf.reduce_sum(rewards[first + 1:last + 1] * discounts)
+    r_t = tf.reduce_sum(rewards[first:last] * discounts)
 
     # g^{n-1} * d_{t} * ... * d_{t+n-1}.
     # d_t = discounts[-1]
@@ -106,7 +106,7 @@ class DemonstrationRecorder:
             self._record_step(timestep, action)
             self._prev_observation = timestep.observation
 
-        # self._record_step(timestep, np.zeros_like(action))
+        self._record_step(timestep, np.zeros_like(action))
 
         self._episodes.append(_nested_stack(self._ep_buffer))
 
