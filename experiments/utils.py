@@ -49,7 +49,8 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
     # 1, g, ..., g^{n-1}.
     additional_discounts = tf.pow(additional_discount, discount_range)
     # 1, d_t, d_t * d_{t+1}, ..., d_t * ... * d_{t+n-2}.
-    discounts = tf.concat([[1.], tf.math.cumprod(discounts[first:last - 1])], 0)
+    d_t = discounts[last]
+    discounts = tf.math.cumprod(discounts[first:last])
     # 1, g * d_t, ..., g^{n-1} * d_t * ... * d_{t+n-2}.
     discounts *= additional_discounts
     # r_t + g * d_t * r_{t+1} + ... + g^{n-1} * d_t * ... * d_{t+n-2} * r_{t+n-1}
@@ -58,7 +59,7 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
     r_t = tf.reduce_sum(rewards[first + 1:last + 1] * discounts)
 
     # g^{n-1} * d_{t} * ... * d_{t+n-1}.
-    d_t = discounts[-1]
+    # d_t = discounts[-1]
 
     # Reverb requires every sample to be given a key and priority.
     # In the supervised learning case for BC, neither of those will be used.
@@ -105,7 +106,7 @@ class DemonstrationRecorder:
             self._record_step(timestep, action)
             self._prev_observation = timestep.observation
 
-        self._record_step(timestep, np.zeros_like(action))
+        # self._record_step(timestep, np.zeros_like(action))
 
         self._episodes.append(_nested_stack(self._ep_buffer))
 
