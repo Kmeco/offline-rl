@@ -1,0 +1,290 @@
+# python3
+# Copyright 2018 DeepMind Technologies Limited. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""DQN learner implementation."""
+
+import time
+import copy
+from typing import Dict, List, Optional
+
+import acme
+from acme.tf import savers as tf2_savers
+from acme.tf import utils as tf2_utils
+from acme.utils import counting
+from acme.utils import loggers
+import numpy as np
+import sonnet as snt
+import tensorflow as tf
+import tensorflow_probability as tfp
+import trfl
+
+tfd = tfp.distributions
+
+
+class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
+  def __init__(
+      self,
+      policy_network: snt.Module,
+      critic_network: snt.Module,
+      dataset: tf.data.Dataset,
+      behavior_network: Optional[snt.Module] = None,
+      cwp_network: Optional[snt.Module] = None,
+      policy_optimizer: Optional[snt.Optimizer] = snt.optimizers.Adam(1e-4),
+      critic_optimizer: Optional[snt.Optimizer] = snt.optimizers.Adam(1e-4),
+      discount: float = 0.99,
+      target_update_period: int = 100,
+      policy_improvement_modes: str = 'exp',
+      ratio_upper_bound: float = 20.,
+      beta: float = 1.0,
+      counter: Optional[counting.Counter] = None,
+      logger: Optional[loggers.Logger] = None,
+      checkpoint: bool = False
+  ):
+    """Initializes the learner.
+
+    Args:
+      network: the online Q network (the one being optimized)
+      target_network: the target Q critic (which lags behind the online net).
+      discount: discount to use for TD updates.
+      importance_sampling_exponent: power to which importance weights are raised
+        before normalizing.
+      learning_rate: learning rate for the q-network update.
+      target_update_period: number of learner steps to perform before updating
+        the target networks.
+      dataset: dataset to learn from, whether fixed or from a replay buffer (see
+        `acme.datasets.reverb.make_dataset` documentation).
+      huber_loss_parameter: Quadratic-linear boundary for Huber loss.
+      replay_client: client to replay to allow for updating priorities.
+      counter: Counter object for (potentially distributed) counting.
+      logger: Logger object for writing logs to.
+      checkpoint: boolean indicating whether to checkpoint the learner.
+    """
+
+    # Internalise agent components (replay buffer, networks, optimizer).
+    # TODO(b/155086959): Fix type stubs and remove.
+    self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
+    # Store online and target networks.
+    self._policy_network = policy_network
+    self._critic_network = critic_network
+    # Create a target networks.
+    self._target_policy_network = copy.deepcopy(policy_network)
+    self._target_critic_network = copy.deepcopy(critic_network)
+    self._critic_optimizer = critic_optimizer
+    self._policy_optimizer = policy_optimizer
+
+    # self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
+    # self._emp_policy = empirical_policy
+    self._target_update_period = target_update_period
+    assert policy_improvement_modes in ['exp', 'binary', 'all']
+    self._policy_improvement_modes = policy_improvement_modes
+    self._beta = beta
+    self._ratio_upper_bound = ratio_upper_bound
+
+    # Internalise the hyperparameters.
+    self._discount = discount
+    self._target_update_period = target_update_period
+
+    # Learner state.
+    # Expose the variables.
+    self._variables = {
+        'critic': self._target_critic_network.variables,
+        'policy': self._target_policy_network.variables,
+    }
+    self._num_steps = tf.Variable(0, dtype=tf.int32)
+
+    # Internalise logging/counting objects.
+    self._counter = counter or counting.Counter()
+    self._logger = logger or loggers.TerminalLogger('learner', time_delta=1.)
+
+    # Create a checkpointer object.
+    self._checkpointer = None
+    self._snapshotter = None
+    if checkpoint:
+      self._checkpointer = tf2_savers.Checkpointer(
+        objects_to_save={
+          'counter': self._counter,
+          'policy': self._policy_network,
+          'critic': self._critic_network,
+          'target_policy': self._target_policy_network,
+          'target_critic': self._target_critic_network,
+          'policy_optimizer': self._policy_optimizer,
+          'critic_optimizer': self._critic_optimizer,
+          'num_steps': self._num_steps,
+        },
+        time_delta_minutes=30.)
+
+    objects_to_save = {
+      'raw_policy': policy_network,
+      'critic': critic_network,
+    }
+    self._snapshotter = tf2_savers.Snapshotter(
+      objects_to_save=objects_to_save, time_delta_minutes=10)
+    # Timestamp to keep track of the wall time.
+    self._walltime_timestamp = time.time()
+
+
+  """DQN learner.
+
+  This is the learning component of a DQN agent. It takes a dataset as input
+  and implements update functionality to learn from this dataset. Optionally
+  it takes a replay client as well to allow for updating of priorities.
+  """
+
+  # @tf.function
+  def _step(self) -> Dict[str, tf.Tensor]:
+    """Do a step of SGD and update the priorities."""
+
+    # Pull out the data needed for updates/priorities.
+    inputs = next(self._iterator)
+    o_tm1, a_tm1, r_t, d_t, o_t = inputs.data
+
+    with tf.GradientTape() as tape:
+      # Evaluate our networks.
+      q_tm1 = self._critic_network(o_tm1)
+
+      # The rewards and discounts have to have the same type as network values.
+      r_t = tf.cast(r_t, q_tm1.dtype)
+      r_t = tf.clip_by_value(r_t, -1., 1.)
+      d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
+
+      # ========================= Critic learning ============================
+      target_a_t_dist = self._target_policy_network(o_t)
+      target_a_t_probs = target_a_t_dist.probs_parameter()
+
+      # Compute the target critic's Q-value of the sampled actions.
+      q_t_target = self._target_critic_network(o_t)
+
+      # Compute the loss
+      critic_loss, extra = trfl.sarse(q_tm1, a_tm1, r_t, d_t, q_t_target, target_a_t_probs)
+
+      # ========================= Actor learning =============================
+      a_tm1_dist = self._policy_network(o_tm1)
+      a_tm1_probs = a_tm1_dist.probs_parameter()
+      expected_policy_q_tm1 = tf.reduce_sum(tf.multiply(q_tm1, a_tm1_probs), axis=1)
+
+      policy_loss_batch = - tf.math.log(trfl.indexing_ops.batched_index(a_tm1_probs, a_tm1))
+      qa_tm1 = trfl.indexing_ops.batched_index(q_tm1, a_tm1)
+
+      advantage = qa_tm1 - expected_policy_q_tm1
+
+      if self._policy_improvement_modes == 'exp':
+        policy_loss_coef_t = tf.math.minimum(
+          tf.math.exp(advantage / self._beta), self._ratio_upper_bound)
+      elif self._policy_improvement_modes == 'binary':
+        policy_loss_coef_t = tf.cast(advantage > 0, dtype=q_tm1.dtype)
+      elif self._policy_improvement_modes == 'all':
+        # Regress against all actions (effectively pure BC).
+        policy_loss_coef_t = 1.
+
+      policy_loss_coef_t = tf.stop_gradient(policy_loss_coef_t)
+      policy_loss_batch *= policy_loss_coef_t
+
+      policy_loss = tf.reduce_mean(policy_loss_batch)
+      critic_loss = tf.reduce_mean(critic_loss)
+
+      # n_actions = q_tm1.shape[-1]
+      #
+      # if self._emp_policy is None:
+      #   # create a mask of epsilon-greedy policy probabilities for the batch
+      #   best_action = tf.argmax(q_tm1, 1, output_type=tf.int32)
+      #   explore_probs = tf.ones(q_tm1.shape, dtype=q_tm1.dtype) * (self._eps / n_actions)
+      #   greedy_probs = tf.one_hot(best_action, n_actions, dtype=q_tm1.dtype) * (1-self._eps)
+      #   policy_probs = explore_probs + greedy_probs
+      # else:
+      #   counts = tf.map_fn(fn=lambda o: self._emp_policy[str(o.numpy())], elems=o_tm1)
+      #   policy_probs = tf.convert_to_tensor(counts / tf.reshape(np.sum(counts, axis=1), (-1, 1)), dtype=q_tm1.dtype)
+      #
+      # push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
+      # push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
+      #
+      # cql_loss = loss + self._alpha * (push_down - push_up)
+
+      # critic_loss_t = tf.reduce_mean(cql_loss, axis=[0])  # []
+
+    # Compute gradients.
+    critic_gradients = tape.gradient(critic_loss,
+                                     self._critic_network.trainable_variables)
+    policy_gradients = tape.gradient(policy_loss,
+                                     self._policy_network.trainable_variables)
+
+    # Delete the tape manually because of the persistent=True flag.
+    del tape
+
+    # Apply gradients.
+    self._critic_optimizer.apply(critic_gradients,
+                                 self._critic_network.trainable_variables)
+    self._policy_optimizer.apply(policy_gradients,
+                                 self._policy_network.trainable_variables)
+
+    source_variables = (
+        self._critic_network.variables + self._policy_network.variables)
+    target_variables = (
+        self._target_critic_network.variables +
+        self._target_policy_network.variables)
+
+    # Make online -> target network update ops.
+    if tf.math.mod(self._num_steps, self._target_update_period) == 0:
+      for src, dest in zip(source_variables, target_variables):
+        dest.assign(src)
+    self._num_steps.assign_add(1)
+
+    return {
+        'critic_loss': critic_loss,
+        'policy_loss': policy_loss,
+    }
+
+
+  def step(self):
+    # Run the learning step.
+    fetches = self._step()
+
+    # Update our counts and record it.
+    new_timestamp = time.time()
+    time_passed = new_timestamp - self._walltime_timestamp
+    self._walltime_timestamp = new_timestamp
+
+    # Update our counts and record it.
+    counts = self._counter.increment(steps=1, wall_time=time_passed)
+    fetches.update(counts)
+
+    # Checkpoint and attempt to write the logs.
+    if self._checkpointer is not None:
+      self._checkpointer.save()
+      self._snapshotter.save()
+
+    self._logger.write(fetches)
+
+  def save(self):
+    if self._snapshotter is not None:
+      self._snapshotter.save(force=True)
+
+  def get_variables(self, names: List[str]) -> List[np.ndarray]:
+    return tf2_utils.to_numpy(self._variables)
+
+  @property
+  def state(self):
+    """Returns the stateful parts of the learner for checkpointing."""
+    return {
+      'counter': self._counter,
+      'policy': self._policy_network,
+      'critic': self._critic_network,
+      'target_policy': self._target_policy_network,
+      'target_critic': self._target_critic_network,
+      'policy_optimizer': self._policy_optimizer,
+      'critic_optimizer': self._critic_optimizer,
+      'num_steps': self._num_steps,
+    }
+
+

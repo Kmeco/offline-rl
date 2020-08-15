@@ -11,7 +11,7 @@ from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
 
 
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
-flags.DEFINE_string('save_dir', 'datasets/', 'Direcotry to which the dataset will be saved.')
+flags.DEFINE_string('save_dir', 'datasets/random', 'Direcotry to which the dataset will be saved.')
 flags.DEFINE_integer('n_episodes', 100, 'Number of episodes to collect.')
 flags.DEFINE_integer('n_episode_steps', 500, 'Max number of steps in each episode.')
 FLAGS = flags.FLAGS
@@ -33,6 +33,7 @@ def main(_):
     recorder.collect_n_episodes(FLAGS.n_episodes)
     recorder.make_tf_dataset()
     recorder.save(FLAGS.save_dir)
+
 
 if __name__ == '__main__':
   app.run(main)

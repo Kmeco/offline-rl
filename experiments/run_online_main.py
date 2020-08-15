@@ -35,7 +35,12 @@ FLAGS = flags.FLAGS
 
 #util
 def _build_custom_loggers():
-    logs_dir = os.path.join(FLAGS.logs_dir, str(int(time.time())) + "_" + FLAGS.logs_tag)
+    tag = str(int(time.time())) + \
+          "_" + str(FLAGS.cql_alpha) + "|" \
+          + str(FLAGS.n_step_returns) + "|" \
+          + FLAGS.logs_tag
+
+    logs_dir = os.path.join(FLAGS.logs_dir, tag)
     terminal_logger = loggers.TerminalLogger(label='learner', time_delta=10)
     tb_logger = TFSummaryLogger(logdir=logs_dir, label='learner')
     disp = loggers.Dispatcher([terminal_logger, tb_logger])

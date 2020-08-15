@@ -14,18 +14,18 @@ from gym_minigrid.wrappers import FullyObsWrapper
 from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
 
 from acme.wrappers import gym_wrapper
-from acme import EnvironmentLoop
+from acme import EnvironmentLoop, types
 from acme.utils import loggers, counting
 from acme import specs
 from acme.utils.loggers.tf_summary import TFSummaryLogger
 
-import trfl
 import tensorflow as tf
 import sonnet as snt
+import tensorflow_probability as tfp
 from utils import n_step_transition_from_episode, load_tf_dataset
 
 from acme.tf import utils as tf2_utils
-from cql.learning import CQLLearner
+from crr.learning import CRRLearner
 
 
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
@@ -86,16 +86,16 @@ def main(_):
     dataset = dataset.repeat().batch(FLAGS.batch_size, drop_remainder=True)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    network = snt.Sequential([
+
+    # Create the critic network.
+    critic_network = snt.Sequential([
       snt.Flatten(),
-      snt.nets.MLP([50, 50, environment_spec.actions.num_values])
+      snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
     ])
-    # Create a target network.
-    target_network = copy.deepcopy(network)
 
     policy_network = snt.Sequential([
-        network,
-        lambda q: trfl.epsilon_greedy(q, epsilon=FLAGS.epsilon).sample(),
+      copy.deepcopy(critic_network),
+      tfp.distributions.Categorical
     ])
 
     counter = counting.Counter()
@@ -105,8 +105,8 @@ def main(_):
     evaluation_network = actors.FeedForwardActor(policy_network)
 
     # Ensure that we create the variables before proceeding (maybe not needed).
-    tf2_utils.create_variables(network, [environment_spec.observations])
-    tf2_utils.create_variables(target_network, [environment_spec.observations])
+    tf2_utils.create_variables(policy_network, [environment_spec.observations])
+    tf2_utils.create_variables(critic_network, [environment_spec.observations])
 
     disp, disp_loop = _build_custom_loggers()
 
@@ -116,17 +116,11 @@ def main(_):
         counter=counter,
         logger=disp_loop)
 
-    learner = CQLLearner(
-        network=network,
-        target_network=target_network,
-        discount=0.99,
-        importance_sampling_exponent=0.2,
-        learning_rate=FLAGS.learning_rate,
-        cql_alpha=FLAGS.cql_alpha,
-        target_update_period=100,
-        empirical_policy=empirical_policy,
+    learner = CRRLearner(
+        policy_network=policy_network,
+        critic_network=critic_network,
         dataset=dataset,
-        logger=disp
+        policy_improvement_modes='binary'
     )
 
     # Run the environment loop.
