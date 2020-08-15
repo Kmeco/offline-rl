@@ -245,7 +245,6 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
         'policy_loss': policy_loss,
     }
 
-
   def step(self):
     # Run the learning step.
     fetches = self._step()
