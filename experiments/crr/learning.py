@@ -150,7 +150,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     inputs = next(self._iterator)
     o_tm1, a_tm1, r_t, d_t, o_t = inputs.data
 
-    with tf.GradientTape() as tape:
+    with tf.GradientTape(persistent=True) as tape:
       # Evaluate our networks.
       q_tm1 = self._critic_network(o_tm1)
 

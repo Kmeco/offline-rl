@@ -14,7 +14,7 @@ from gym_minigrid.wrappers import FullyObsWrapper
 from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
 
 from acme.wrappers import gym_wrapper
-from acme import EnvironmentLoop, types
+from acme import EnvironmentLoop
 from acme.utils import loggers, counting
 from acme import specs
 from acme.utils.loggers.tf_summary import TFSummaryLogger
@@ -24,7 +24,7 @@ import sonnet as snt
 import tensorflow_probability as tfp
 from utils import n_step_transition_from_episode, load_tf_dataset
 
-from acme.tf import utils as tf2_utils
+from acme.tf import utils as tf2_utils, networks
 from crr.learning import CRRLearner
 
 
@@ -41,6 +41,8 @@ flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
 flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
 flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
 flags.DEFINE_integer('epochs', 100, 'Number of epochs to run (samples only 1 transition per episode in each epoch).')
+flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
+
 FLAGS = flags.FLAGS
 
 
@@ -98,11 +100,16 @@ def main(_):
       tfp.distributions.Categorical
     ])
 
+    behaviour_network = snt.Sequential([
+      policy_network,
+      networks.StochasticSamplingHead()
+    ])
+
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
 
     # Create the actor which defines how we take actions.
-    evaluation_network = actors.FeedForwardActor(policy_network)
+    evaluation_actor = actors.FeedForwardActor(behaviour_network)
 
     # Ensure that we create the variables before proceeding (maybe not needed).
     tf2_utils.create_variables(policy_network, [environment_spec.observations])
@@ -112,7 +119,7 @@ def main(_):
 
     eval_loop = EnvironmentLoop(
         environment=environment,
-        actor=evaluation_network,
+        actor=evaluation_actor,
         counter=counter,
         logger=disp_loop)
 
@@ -120,7 +127,7 @@ def main(_):
         policy_network=policy_network,
         critic_network=critic_network,
         dataset=dataset,
-        policy_improvement_modes='binary'
+        policy_improvement_modes=FLAGS.policy_improvement_mode
     )
 
     # Run the environment loop.
