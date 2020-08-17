@@ -31,7 +31,7 @@ import tensorflow_probability as tfp
 import trfl
 
 tfd = tfp.distributions
-
+tf.get_logger().setLevel('ERROR')
 
 class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
   def __init__(

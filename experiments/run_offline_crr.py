@@ -47,10 +47,12 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
-    # Create an environment and grab the spec.
+    wb_run = wandb.init(project="offline-rl") if FLAGS.wandb else None
+
     if FLAGS.seed:
         tf.random.set_seed(FLAGS.seed)
 
+    # Create an environment and grab the spec.
     environment = _build_environment(FLAGS.environment_name)
     environment_spec = specs.make_environment_spec(environment)
 
@@ -118,7 +120,5 @@ def main(_):
 
 if __name__ == '__main__':
     tf.get_logger().setLevel('ERROR')
-    if FLAGS.wandb:
-        wb_run = wandb.init(project="offline-rl")
     app.run(main)
 
