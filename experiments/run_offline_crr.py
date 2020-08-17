@@ -115,7 +115,8 @@ def main(_):
 
 
 if __name__ == '__main__':
-    tf.get_logger().setLevel('WARNING')
-    wb_run = wandb.init(project="offline-rl", sync_tensorboard=True)
+    tf.get_logger().setLevel('ERROR')
+    if FLAGS.wandb:
+        wb_run = wandb.init(project="offline-rl")
     app.run(main)
 

@@ -26,16 +26,17 @@ from gym_minigrid.wrappers import FullyObsWrapper
 def _build_custom_loggers(wb_client, tag):
   tag = str(int(time.time())) + tag
 
-  logs_dir = os.path.join(tag)
-  terminal_logger = loggers.TerminalLogger(label='Learner', time_delta=10)
-  tb_logger = WBLogger(wb_client, label='Learner')
-  disp = loggers.Dispatcher([terminal_logger, tb_logger])
+  terminal_learner = loggers.TerminalLogger(label='Learner', time_delta=10)
+  terminal_eval = loggers.TerminalLogger(label='EvalLoop', time_delta=10)
 
-  terminal_logger = loggers.TerminalLogger(label='EvalLoop', time_delta=10)
-  tb_logger = WBLogger(wb_client, label='EvalLoop')
-  disp_loop = loggers.Dispatcher([terminal_logger, tb_logger])
-
-  return disp, disp_loop
+  if wb_client is not None:
+    wb_learner = WBLogger(wb_client, label='Learner')
+    wb_loop = WBLogger(wb_client, label='EvalLoop')
+    disp = loggers.Dispatcher([terminal_learner, wb_learner])
+    disp_loop = loggers.Dispatcher([terminal_eval, wb_loop])
+    return disp, disp_loop
+  else:
+    return terminal_learner, terminal_eval
 
 
 def _build_environment(name, n_actions=3, max_steps=500):
