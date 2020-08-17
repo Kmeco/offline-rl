@@ -233,7 +233,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     metrics = {
       'critic_loss': critic_loss,
       'policy_loss': policy_loss,
-      'advantage': advantage,
+      'advantage': tf.reduce_mean(advantage),
       'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0),
       'q_average': tf.reduce_mean(q_tm1)
     }

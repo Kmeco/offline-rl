@@ -73,7 +73,7 @@ class WBLogger(base.Logger):
     self._wandb = wb_run
 
   def write(self, values: base.LoggingData):
-    self._wandb.log({self.label + k: v for k, v in values.items()}, step=self._iter)
+    self._wandb.log({self.label + k: v for k, v in values.items()})
     self._iter += 1
 
 
