@@ -2,180 +2,241 @@ import operator
 import os
 import time
 
+import gym
 import dm_env
 import tree
 import reverb
 import tensorflow as tf
 import numpy as np
 import pickle
+
+from acme.utils import loggers
+from acme.wrappers import gym_wrapper
 from tqdm import tqdm
 from typing import Any, List
 
 from acme import core, specs, types
 
+from acme.utils.loggers import base
 
-def n_step_transition_from_episode(observations: types.NestedTensor,
-                                    actions: tf.Tensor, rewards: tf.Tensor,
-                                    discounts: tf.Tensor, n_step: int,
-                                    additional_discount: float):
-    """Produce Reverb-like N-step transition from a full episode.
+from custom_env_wrappers import CustomSinglePrecisionWrapper, ImgFlatObsWrapper
+from gym_minigrid.wrappers import FullyObsWrapper
 
-    Observations, actions, rewards and discounts have the same length. This
-    function will ignore the first reward and discount and the last action.
+
+def _build_custom_loggers(wb_client, tag):
+  tag = str(int(time.time())) + tag
+
+  logs_dir = os.path.join(tag)
+  terminal_logger = loggers.TerminalLogger(label='Learner', time_delta=10)
+  tb_logger = WBLogger(wb_client, label='Learner')
+  disp = loggers.Dispatcher([terminal_logger, tb_logger])
+
+  terminal_logger = loggers.TerminalLogger(label='EvalLoop', time_delta=10)
+  tb_logger = WBLogger(wb_client, label='EvalLoop')
+  disp_loop = loggers.Dispatcher([terminal_logger, tb_logger])
+
+  return disp, disp_loop
+
+
+def _build_environment(name, n_actions=3, max_steps=500):
+  raw_env = gym.make(name)
+  raw_env.action_space.n = n_actions
+  raw_env.max_steps = max_steps
+  env = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
+  env = gym_wrapper.GymWrapper(env)
+  env = CustomSinglePrecisionWrapper(env)
+  return env
+
+
+class WBLogger(base.Logger):
+  """Logs to wandb.
+
+  If multiple TFSummaryLogger are created with the same logdir, results will be
+  categorized by labels.
+  """
+
+  def __init__(
+    self,
+    wb_run,
+    label: str = 'Logs',
+  ):
+    """Initializes the logger.
 
     Args:
-    observations: [L, ...] Tensor.
-    actions: [L, ...] Tensor.
-    rewards: [L] Tensor.
-    discounts: [L] Tensor.
-    n_step: number of steps to squash into a single transition.
-    additional_discount: discount to use for TD updates.
-
-    Returns:
-    (o_t, a_t, r_t, d_t, o_tp1) tuple.
+      logdir: directory to which we should log files.
+      label: label string to use when logging. Default to 'Logs'.
     """
+    self._time = time.time()
+    self.label = label
+    self._iter = 0
+    self._wandb = wb_run
 
-    max_index = tf.shape(rewards)[0] - 1
-    first = tf.random.uniform(
-      shape=(), minval=0, maxval=max_index, dtype=tf.int32)
-    last = tf.minimum(first + n_step, max_index)
+  def write(self, values: base.LoggingData):
+    self._wandb.log(values)
+    self._iter += 1
 
-    o_t = tree.map_structure(operator.itemgetter(first), observations)
-    a_t = tree.map_structure(operator.itemgetter(first), actions)
-    o_tp1 = tree.map_structure(operator.itemgetter(last), observations)
 
-    # 0, 1, ..., n-1.
-    discount_range = tf.cast(tf.range(last - first), tf.float32)
-    # 1, g, ..., g^{n-1}.
-    additional_discounts = tf.pow(additional_discount, discount_range)
-    # 1, d_t, d_t * d_{t+1}, ..., d_t * ... * d_{t+n-2}.
-    d_t = discounts[last-1] * additional_discount ** tf.cast((last - first), tf.float32)
-    discounts = tf.concat([[1.], tf.math.cumprod(discounts[first:last-1])], 0)
-    # 1, g * d_t, ..., g^{n-1} * d_t * ... * d_{t+n-2}.
-    discounts *= additional_discounts
-    # r_t + g * d_t * r_{t+1} + ... + g^{n-1} * d_t * ... * d_{t+n-2} * r_{t+n-1}
-    # We have to shift rewards by one so last=max_index corresponds to transitions
-    # that include the last reward.
-    r_t = tf.reduce_sum(rewards[first:last] * discounts)
+def n_step_transition_from_episode(observations: types.NestedTensor,
+                                   actions: tf.Tensor, rewards: tf.Tensor,
+                                   discounts: tf.Tensor, n_step: int,
+                                   additional_discount: float):
+  """Produce Reverb-like N-step transition from a full episode.
 
-    # g^{n-1} * d_{t} * ... * d_{t+n-1}.
-    # d_t = discounts[-1]
+  Observations, actions, rewards and discounts have the same length. This
+  function will ignore the first reward and discount and the last action.
 
-    # Reverb requires every sample to be given a key and priority.
-    # In the supervised learning case for BC, neither of those will be used.
-    # We set the key to `0` and the priorities probabilities to `1`, but that
-    # should not matter much.
-    key = tf.constant(0, tf.uint64)
-    probability = tf.constant(1.0, tf.float64)
-    table_size = tf.constant(1, tf.int64)
-    priority = tf.constant(1.0, tf.float64)
-    info = reverb.SampleInfo(
-      key=key,
-      probability=probability,
-      table_size=table_size,
-      priority=priority,
-    )
+  Args:
+  observations: [L, ...] Tensor.
+  actions: [L, ...] Tensor.
+  rewards: [L] Tensor.
+  discounts: [L] Tensor.
+  n_step: number of steps to squash into a single transition.
+  additional_discount: discount to use for TD updates.
 
-    return reverb.ReplaySample(info=info, data=(o_t, a_t, r_t, d_t, o_tp1))
+  Returns:
+  (o_t, a_t, r_t, d_t, o_tp1) tuple.
+  """
+
+  max_index = tf.shape(rewards)[0] - 1
+  first = tf.random.uniform(
+    shape=(), minval=0, maxval=max_index, dtype=tf.int32)
+  last = tf.minimum(first + n_step, max_index)
+
+  o_t = tree.map_structure(operator.itemgetter(first), observations)
+  a_t = tree.map_structure(operator.itemgetter(first), actions)
+  o_tp1 = tree.map_structure(operator.itemgetter(last), observations)
+
+  # 0, 1, ..., n-1.
+  discount_range = tf.cast(tf.range(last - first), tf.float32)
+  # 1, g, ..., g^{n-1}.
+  additional_discounts = tf.pow(additional_discount, discount_range)
+  # 1, d_t, d_t * d_{t+1}, ..., d_t * ... * d_{t+n-2}.
+  d_t = discounts[last - 1] * additional_discount ** tf.cast((last - first), tf.float32)
+  discounts = tf.concat([[1.], tf.math.cumprod(discounts[first:last - 1])], 0)
+  # 1, g * d_t, ..., g^{n-1} * d_t * ... * d_{t+n-2}.
+  discounts *= additional_discounts
+  #  r_t + g * d_t * r_{t+1} + ... + g^{n-1} * d_t * ... * d_{t+n-2} * r_{t+n-1}
+  # We have to shift rewards by one so last=max_index corresponds to transitions
+  # that include the last reward.
+  r_t = tf.reduce_sum(rewards[first:last] * discounts)
+
+  # g^{n-1} * d_{t} * ... * d_{t+n-1}.
+  # d_t = discounts[-1]
+
+  # Reverb requires every sample to be given a key and priority.
+  # In the supervised learning case for BC, neither of those will be used.
+  # We set the key to `0` and the priorities probabilities to `1`, but that
+  # should not matter much.
+  key = tf.constant(0, tf.uint64)
+  probability = tf.constant(1.0, tf.float64)
+  table_size = tf.constant(1, tf.int64)
+  priority = tf.constant(1.0, tf.float64)
+  info = reverb.SampleInfo(
+    key=key,
+    probability=probability,
+    table_size=table_size,
+    priority=priority,
+  )
+
+  return reverb.ReplaySample(info=info, data=(o_t, a_t, r_t, d_t, o_tp1))
 
 
 class DemonstrationRecorder:
-    def __init__(self, env, agent):
-        self._episodes = []
-        self._ep_buffer = []
-        self.env = env
-        self._env_spec = specs.make_environment_spec(env)
-        self.agent = agent
-        self.empirical_policy = {}
-        self._prev_observation = None
+  def __init__(self, env, agent):
+    self._episodes = []
+    self._ep_buffer = []
+    self.env = env
+    self._env_spec = specs.make_environment_spec(env)
+    self.agent = agent
+    self.empirical_policy = {}
+    self._prev_observation = None
 
-    def collect_episode(self):
-        """ collects tuples:
-                o_t: Observation at time t.
-                a_t: Action at time t.
-                r_t: Reward at time t.
-                d_t: Discount at time t.
-                extras: Dictionary with extra features."""
-        self._ep_buffer = []
-        timestep = self.env.reset()
-        self._prev_observation = timestep.observation
-        while not timestep.last():
-            action = self.agent.select_action(self._prev_observation)
-            self._update_policy_counts(self._prev_observation, action)
-            timestep = self.env.step(action)
-            self._record_step(timestep, action)
-            self._prev_observation = timestep.observation
+  def collect_episode(self):
+    """ collects tuples:
+            o_t: Observation at time t.
+            a_t: Action at time t.
+            r_t: Reward at time t.
+            d_t: Discount at time t.
+            extras: Dictionary with extra features."""
+    self._ep_buffer = []
+    timestep = self.env.reset()
+    self._prev_observation = timestep.observation
+    while not timestep.last():
+      action = self.agent.select_action(self._prev_observation)
+      self._update_policy_counts(self._prev_observation, action)
+      timestep = self.env.step(action)
+      self._record_step(timestep, action)
+      self._prev_observation = timestep.observation
 
-        self._record_step(timestep, np.zeros_like(action))
+    self._record_step(timestep, np.zeros_like(action))
 
-        self._episodes.append(_nested_stack(self._ep_buffer))
+    self._episodes.append(_nested_stack(self._ep_buffer))
 
-    def collect_n_episodes(self, n):
-        for _ in tqdm(range(n)):
-            self.collect_episode()
+  def collect_n_episodes(self, n):
+    for _ in tqdm(range(n)):
+      self.collect_episode()
 
-    def _update_policy_counts(self, observation, action):
-        if self.empirical_policy.get(str(observation)) is not None:
-            self.empirical_policy[str(observation)][action] += 1
-        else:
-            self.empirical_policy[str(observation)] = np.zeros(self._env_spec.actions.num_values)
+  def _update_policy_counts(self, observation, action):
+    if self.empirical_policy.get(str(observation)) is not None:
+      self.empirical_policy[str(observation)][action] += 1
+    else:
+      self.empirical_policy[str(observation)] = np.zeros(self._env_spec.actions.num_values)
 
-    def _record_step(self, timestep, action):
-        reward = np.array(timestep.reward or 0, np.float32)
-        discount = tf.constant(timestep.discount if timestep.discount is not None else 1, tf.float32)
-        self._ep_buffer.append((self._prev_observation,
-                                action,
-                                reward,
-                                discount))
+  def _record_step(self, timestep, action):
+    reward = np.array(timestep.reward or 0, np.float32)
+    discount = tf.constant(timestep.discount if timestep.discount is not None else 1, tf.float32)
+    self._ep_buffer.append((self._prev_observation,
+                            action,
+                            reward,
+                            discount))
 
-    def make_tf_dataset(self):
-        self.types = tree.map_structure(lambda x: x.dtype, self._episodes[0])
-        # the shapes are given by None since the ep length varies
-        self.shapes = ((None, self._episodes[0][0].shape[1]), (None,), (None,), (None,))
+  def make_tf_dataset(self):
+    self.types = tree.map_structure(lambda x: x.dtype, self._episodes[0])
+    # the shapes are given by None since the ep length varies
+    self.shapes = ((None, self._episodes[0][0].shape[1]), (None,), (None,), (None,))
 
-        self.ds = tf.data.Dataset.from_generator(lambda: self._episodes, self.types, self.shapes)
-        # .repeat().shuffle(len(dr._episodes))
-        return self.ds
+    self.ds = tf.data.Dataset.from_generator(lambda: self._episodes, self.types, self.shapes)
+    # .repeat().shuffle(len(dr._episodes))
+    return self.ds
 
-    @tf.autograph.experimental.do_not_convert
-    def save(self, directory='datasets', overwrite=False):
-        if not overwrite:
-            directory = os.path.join(directory, str(int(time.time())))
-        os.makedirs(directory, exist_ok=True)
+  @tf.autograph.experimental.do_not_convert
+  def save(self, directory='datasets', overwrite=False):
+    if not overwrite:
+      directory = os.path.join(directory, str(int(time.time())))
+    os.makedirs(directory, exist_ok=True)
 
-        spec = {'types': self.types,
-                'shapes': self.shapes,
-                'policy': self.empirical_policy}
+    spec = {'types': self.types,
+            'shapes': self.shapes,
+            'policy': self.empirical_policy}
 
-        spec_file = os.path.join(directory, 'spec.pkl')
-        with open(spec_file, 'wb') as f:
-            pickle.dump(spec, f)
+    spec_file = os.path.join(directory, 'spec.pkl')
+    with open(spec_file, 'wb') as f:
+      pickle.dump(spec, f)
 
-        for i, _ in enumerate(self.ds.element_spec):
-            file_path = os.path.join(directory, f'offline_data.{i}.tfrecord')
-            ds_i = self.ds.map(lambda *args: args[i]).map(tf.io.serialize_tensor)
-            writer = tf.data.experimental.TFRecordWriter(file_path, compression_type='GZIP')
-            writer.write(ds_i)
+    for i, _ in enumerate(self.ds.element_spec):
+      file_path = os.path.join(directory, f'offline_data.{i}.tfrecord')
+      ds_i = self.ds.map(lambda *args: args[i]).map(tf.io.serialize_tensor)
+      writer = tf.data.experimental.TFRecordWriter(file_path, compression_type='GZIP')
+      writer.write(ds_i)
 
 
 @tf.autograph.experimental.do_not_convert
 def load_tf_dataset(directory='datasets'):
+  spec_path = os.path.join(directory, 'spec.pkl')
+  with open(spec_path, 'rb') as f:
+    spec = pickle.load(f)
 
-    spec_path = os.path.join(directory, 'spec.pkl')
-    with open(spec_path, 'rb') as f:
-        spec = pickle.load(f)
-
-    parts = []
-    for i, dtype in enumerate(spec['types']):
-        file_path = os.path.join(directory, f'offline_data.{i}.tfrecord')
-        parts.append(tf.data.TFRecordDataset(file_path, compression_type='GZIP').map(
-                                             lambda x: tf.io.parse_tensor(x, dtype)))
-    return tf.data.Dataset.zip(tuple(parts)), spec['policy']
+  parts = []
+  for i, dtype in enumerate(spec['types']):
+    file_path = os.path.join(directory, f'offline_data.{i}.tfrecord')
+    parts.append(tf.data.TFRecordDataset(file_path, compression_type='GZIP').map(
+      lambda x: tf.io.parse_tensor(x, dtype)))
+  return tf.data.Dataset.zip(tuple(parts)), spec['policy']
 
 
 def _nested_stack(sequence: List[Any]):
-    """Stack nested elements in a sequence."""
-    return tree.map_structure(lambda *x: np.stack(x), *sequence)
+  """Stack nested elements in a sequence."""
+  return tree.map_structure(lambda *x: np.stack(x), *sequence)
 
 
 class RandomActor(core.Actor):
@@ -193,9 +254,9 @@ class RandomActor(core.Actor):
     _validate_spec(self._spec.observations, timestep.observation)
 
   def observe(
-      self,
-      action: types.NestedArray,
-      next_timestep: dm_env.TimeStep,
+    self,
+    action: types.NestedArray,
+    next_timestep: dm_env.TimeStep,
   ):
     _validate_spec(self._spec.actions, action)
     _validate_spec(self._spec.rewards, next_timestep.reward)
@@ -204,6 +265,7 @@ class RandomActor(core.Actor):
 
   def update(self):
     self.num_updates += 1
+
 
 def _validate_spec(spec: types.NestedSpec, value: types.NestedArray):
   """Validate a value from a potentially nested spec."""
