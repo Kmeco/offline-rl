@@ -59,7 +59,7 @@ class WBLogger(base.Logger):
   def __init__(
     self,
     wb_run,
-    label: str = 'Logs',
+    label: str = '',
   ):
     """Initializes the logger.
 
@@ -68,12 +68,12 @@ class WBLogger(base.Logger):
       label: label string to use when logging. Default to 'Logs'.
     """
     self._time = time.time()
-    self.label = label
+    self.label = label + '/'
     self._iter = 0
     self._wandb = wb_run
 
   def write(self, values: base.LoggingData):
-    self._wandb.log(values)
+    self._wandb.log({self.label + k: v for k, v in values.items()}, step=self._iter)
     self._iter += 1
 
 

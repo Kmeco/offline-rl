@@ -201,7 +201,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
 
         cql_loss = critic_loss + self._alpha * (push_down - push_up)
 
-        critic_loss = tf.reduce_mean(cql_loss, axis=[0])  # []
+        critic_loss = tf.reduce_mean(cql_loss, axis=0)
 
     # Compute gradients.
     critic_gradients = tape.gradient(critic_loss,
@@ -230,10 +230,18 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
         dest.assign(src)
     self._num_steps.assign_add(1)
 
-    return {
-        'critic_loss': critic_loss,
-        'policy_loss': policy_loss,
+    metrics = {
+      'critic_loss': critic_loss,
+      'policy_loss': policy_loss,
+      'advantage': advantage,
+      'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0),
+      'q_average': tf.reduce_mean(q_tm1)
     }
+    if self._alpha:
+      metrics.update({'push_up': tf.reduce_mean(push_up, axis=0),
+                      'push_down': tf.reduce_mean(push_down, axis=0)
+                      })
+    return metrics
 
   def step(self):
     # Run the learning step.
@@ -245,7 +253,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     self._walltime_timestamp = new_timestamp
 
     # Update our counts and record it.
-    counts = self._counter.increment(steps=1, wall_time=time_passed)
+    counts = self._counter.increment(learner_steps=1, wall_time=time_passed)
     fetches.update(counts)
 
     # Checkpoint and attempt to write the logs.

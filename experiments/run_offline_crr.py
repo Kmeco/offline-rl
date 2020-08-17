@@ -83,7 +83,6 @@ def main(_):
     ])
 
     counter = counting.Counter()
-    learner_counter = counting.Counter(counter, prefix='learner')
 
     # Create the actor which defines how we take actions.
     evaluation_actor = actors.FeedForwardActor(behaviour_network)
@@ -114,7 +113,6 @@ def main(_):
     for _ in tqdm(range(FLAGS.epochs)):
         for _ in range(FLAGS.evaluate_every):
             learner.step()
-        learner_counter.increment(learner_steps=FLAGS.evaluate_every)
         eval_loop.run(FLAGS.evaluation_episodes)
 
     learner.save()
