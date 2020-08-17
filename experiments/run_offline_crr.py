@@ -101,7 +101,9 @@ def main(_):
         critic_network=critic_network,
         dataset=dataset,
         policy_improvement_modes=FLAGS.policy_improvement_mode,
-        logger=disp
+        logger=disp,
+        cql_alpha=FLAGS.cql_alpha,
+        empirical_policy=empirical_policy
     )
 
     # Run the environment loop.

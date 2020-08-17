@@ -48,6 +48,8 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       policy_improvement_modes: str = 'exp',
       ratio_upper_bound: float = 20.,
       beta: float = 1.0,
+      cql_alpha: float = 0.0,
+      empirical_policy: dict = None,
       counter: Optional[counting.Counter] = None,
       logger: Optional[loggers.Logger] = None,
       checkpoint: bool = True
@@ -85,14 +87,20 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     # self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
     # self._emp_policy = empirical_policy
     self._target_update_period = target_update_period
-    assert policy_improvement_modes in ['exp', 'binary', 'all'], 'Policy imp. mode must be one of {exp, binary, all}'
-    self._policy_improvement_modes = policy_improvement_modes
-    self._beta = beta
-    self._ratio_upper_bound = ratio_upper_bound
 
     # Internalise the hyperparameters.
     self._discount = discount
     self._target_update_period = target_update_period
+    # crr specific
+    assert policy_improvement_modes in ['exp', 'binary', 'all'], 'Policy imp. mode must be one of {exp, binary, all}'
+    self._policy_improvement_modes = policy_improvement_modes
+    self._beta = beta
+    self._ratio_upper_bound = ratio_upper_bound
+    # cql specific
+    self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
+    if cql_alpha:
+      assert empirical_policy is not None, 'Empirical behavioural policy must be specified with non-zero cql_alpha.'
+    self._emp_policy = empirical_policy
 
     # Learner state.
     # Expose the variables.
@@ -184,24 +192,16 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       policy_loss = tf.reduce_mean(policy_loss_batch)
       critic_loss = tf.reduce_mean(critic_loss)
 
-      # n_actions = q_tm1.shape[-1]
-      #
-      # if self._emp_policy is None:
-      #   # create a mask of epsilon-greedy policy probabilities for the batch
-      #   best_action = tf.argmax(q_tm1, 1, output_type=tf.int32)
-      #   explore_probs = tf.ones(q_tm1.shape, dtype=q_tm1.dtype) * (self._eps / n_actions)
-      #   greedy_probs = tf.one_hot(best_action, n_actions, dtype=q_tm1.dtype) * (1-self._eps)
-      #   policy_probs = explore_probs + greedy_probs
-      # else:
-      #   counts = tf.map_fn(fn=lambda o: self._emp_policy[str(o.numpy())], elems=o_tm1)
-      #   policy_probs = tf.convert_to_tensor(counts / tf.reshape(np.sum(counts, axis=1), (-1, 1)), dtype=q_tm1.dtype)
-      #
-      # push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
-      # push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
-      #
-      # cql_loss = loss + self._alpha * (push_down - push_up)
+      if self._alpha:
+        counts = tf.map_fn(fn=lambda o: self._emp_policy[str(o.numpy())], elems=o_tm1)
+        policy_probs = tf.convert_to_tensor(counts / tf.reshape(np.sum(counts, axis=1), (-1, 1)), dtype=q_tm1.dtype)
 
-      # critic_loss_t = tf.reduce_mean(cql_loss, axis=[0])  # []
+        push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
+        push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
+
+        cql_loss = critic_loss + self._alpha * (push_down - push_up)
+
+        critic_loss = tf.reduce_mean(cql_loss, axis=[0])  # []
 
     # Compute gradients.
     critic_gradients = tape.gradient(critic_loss,
