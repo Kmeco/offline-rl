@@ -1,6 +1,8 @@
 #@title Import modules.
 #python3
 import copy
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from absl import app
 from absl import flags
@@ -41,7 +43,7 @@ flags.DEFINE_float('discount', 0.99, 'Discount factor.')
 flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
 
 # specific config
-flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
+flags.DEFINE_float('cql_alpha', 0.0, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
 FLAGS = flags.FLAGS
 
@@ -119,6 +121,5 @@ def main(_):
 
 
 if __name__ == '__main__':
-    tf.get_logger().setLevel('ERROR')
     app.run(main)
 
