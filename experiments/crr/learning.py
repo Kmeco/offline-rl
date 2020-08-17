@@ -50,7 +50,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       beta: float = 1.0,
       counter: Optional[counting.Counter] = None,
       logger: Optional[loggers.Logger] = None,
-      checkpoint: bool = False
+      checkpoint: bool = True
   ):
     """Initializes the learner.
 
@@ -72,8 +72,6 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       checkpoint: boolean indicating whether to checkpoint the learner.
     """
 
-    # Internalise agent components (replay buffer, networks, optimizer).
-    # TODO(b/155086959): Fix type stubs and remove.
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
     # Store online and target networks.
     self._policy_network = policy_network
@@ -87,7 +85,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     # self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
     # self._emp_policy = empirical_policy
     self._target_update_period = target_update_period
-    assert policy_improvement_modes in ['exp', 'binary', 'all']
+    assert policy_improvement_modes in ['exp', 'binary', 'all'], 'Policy imp. mode must be one of {exp, binary, all}'
     self._policy_improvement_modes = policy_improvement_modes
     self._beta = beta
     self._ratio_upper_bound = ratio_upper_bound
@@ -134,17 +132,9 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     # Timestamp to keep track of the wall time.
     self._walltime_timestamp = time.time()
 
-
-  """DQN learner.
-
-  This is the learning component of a DQN agent. It takes a dataset as input
-  and implements update functionality to learn from this dataset. Optionally
-  it takes a replay client as well to allow for updating of priorities.
-  """
-
   # @tf.function
   def _step(self) -> Dict[str, tf.Tensor]:
-    """Do a step of SGD and update the priorities."""
+    """Do a step of SGD."""
 
     # Pull out the data needed for updates/priorities.
     inputs = next(self._iterator)
@@ -266,8 +256,8 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     self._logger.write(fetches)
 
   def save(self):
-    if self._snapshotter is not None:
-      self._snapshotter.save(force=True)
+    self._snapshotter.save(force=True)
+    self._checkpointer.save(force=True)
 
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)

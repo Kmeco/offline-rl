@@ -1,0 +1,13 @@
+gym
+gym-minigrid
+imageio
+PILLOW
+pyglet
+pyvirtualdisplay
+dm-acme
+dm-acme[reverb]
+dm-acme[tf]
+dm-acme[envs]
+tensorflow_probability
+wandb
+
