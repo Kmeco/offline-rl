@@ -1,5 +1,6 @@
 #python3
 import copy
+import time
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -52,8 +53,9 @@ def main(_):
     for _ in range(FLAGS.n_random_runs):
         wb_run = wandb.init(project="offline-rl",
                             group=FLAGS.logs_tag,
+                            id=str(int(time.time())),
                             config=config,
-                            reinit=FLAGS.acme_id is not None) if FLAGS.wandb else None
+                            reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
 
         if FLAGS.seed:
             tf.random.set_seed(FLAGS.seed)
