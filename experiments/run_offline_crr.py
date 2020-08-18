@@ -34,7 +34,6 @@ flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
 flags.DEFINE_integer('epochs', 100, 'Number of epochs to run (samples only 1 transition per episode in each epoch).')
 flags.DEFINE_integer('seed', 1234, 'Random seed for replicable results. Set to 0 for no seed.')
 flags.DEFINE_integer('n_random_runs', 1, 'Run n runs with different random seeds and track them under one wb group.')
-flags.DEFINE_string('acme_id', None, 'This id can be used to resume from a checkpoint.')
 # general learner config
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for the epsilon greedy in the env.')
