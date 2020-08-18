@@ -140,7 +140,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       'critic': critic_network,
     }
     self._snapshotter = tf2_savers.Snapshotter(
-      objects_to_save=objects_to_save, time_delta_minutes=10)
+      objects_to_save=objects_to_save, time_delta_minutes=10, directory=checkpoint_subpath)
     # Timestamp to keep track of the wall time.
     self._walltime_timestamp = time.time()
 
