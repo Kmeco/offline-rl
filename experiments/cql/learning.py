@@ -33,13 +33,6 @@ import trfl
 
 
 class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
-  """DQN learner.
-
-  This is the learning component of a DQN agent. It takes a dataset as input
-  and implements update functionality to learn from this dataset. Optionally
-  it takes a replay client as well to allow for updating of priorities.
-  """
-
   def __init__(
       self,
       network: snt.Module,
@@ -48,15 +41,16 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       importance_sampling_exponent: float,
       learning_rate: float,
       target_update_period: int,
+      cql_alpha: float,
       dataset: tf.data.Dataset,
       huber_loss_parameter: float = 1.,
-      cql_alpha: float = 1.0,
       epsilon: float = 0.3,
       empirical_policy: dict = None,
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
+      checkpoint_subpath: str = '~/acme/'
   ):
     """Initializes the learner.
 
@@ -105,15 +99,27 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Create a snapshotter object.
     if checkpoint:
-      self._snapshotter = tf2_savers.Snapshotter(
-          objects_to_save={'network': network}, time_delta_minutes=60.)
-    else:
-      self._snapshotter = None
+      self._checkpointer = tf2_savers.Checkpointer(
+        objects_to_save=self.state,
+        time_delta_minutes=30.,
+        directory=checkpoint_subpath,
+        subdirectory='cql_learner'
+      )
+    self._snapshotter = tf2_savers.Snapshotter(
+        objects_to_save={'network': network}, time_delta_minutes=60.)
+
 
     # Do not record timestamps until after the first learning step is done.
     # This is to avoid including the time it takes for actors to come online and
     # fill the replay buffer.
     self._timestamp = None
+
+  """DQN learner.
+
+  This is the learning component of a DQN agent. It takes a dataset as input
+  and implements update functionality to learn from this dataset. Optionally
+  it takes a replay client as well to allow for updating of priorities.
+  """
 
   # @tf.function
   def _step(self) -> Dict[str, tf.Tensor]:
@@ -198,17 +204,19 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     self._timestamp = timestamp
 
     # Update our counts and record it.
-    counts = self._counter.increment(steps=1, walltime=elapsed_time)
+    counts = self._counter.increment(learner_steps=1, walltime=elapsed_time)
     result.update(counts)
 
     # Snapshot and attempt to write logs.
     if self._snapshotter is not None:
       self._snapshotter.save()
+      self._checkpointer.save()
+
     self._logger.write(result)
 
   def save(self):
-    if self._snapshotter is not None:
-      self._snapshotter.save(force=True)
+    self._snapshotter.save(force=True)
+    self._checkpointer.save(force=True)
 
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)

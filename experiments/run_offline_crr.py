@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from acme.agents.tf import actors
 
-from acme import EnvironmentLoop
+from acme.environment_loop import EnvironmentLoop
 from acme.utils import counting
 from acme import specs
 
@@ -89,6 +89,7 @@ def main(_):
         ])
 
         counter = counting.Counter() # TODO: checkpoint this for full logging state resuming
+        learner_counter = counting.Counter(counter)
 
         # Create the actor which defines how we take actions.
         evaluation_actor = actors.FeedForwardActor(behaviour_network)
@@ -109,10 +110,12 @@ def main(_):
             policy_network=policy_network,
             critic_network=critic_network,
             dataset=dataset,
+            discount=0.99,
             policy_improvement_modes=FLAGS.policy_improvement_mode,
             logger=disp,
             cql_alpha=FLAGS.cql_alpha,
             empirical_policy=empirical_policy,
+            counter=learner_counter,
             checkpoint_subpath=os.path.join(wandb.run.dir, "acme/")
         )
 

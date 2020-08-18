@@ -39,11 +39,11 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       policy_network: snt.Module,
       critic_network: snt.Module,
       dataset: tf.data.Dataset,
+      discount: float,
       behavior_network: Optional[snt.Module] = None,
       cwp_network: Optional[snt.Module] = None,
       policy_optimizer: Optional[snt.Optimizer] = snt.optimizers.Adam(1e-4),
       critic_optimizer: Optional[snt.Optimizer] = snt.optimizers.Adam(1e-4),
-      discount: float = 0.99,
       target_update_period: int = 100,
       policy_improvement_modes: str = 'exp',
       ratio_upper_bound: float = 20.,
@@ -117,19 +117,9 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Create a checkpointer object.
     self._checkpointer = None
-    self._snapshotter = None
     if checkpoint:
       self._checkpointer = tf2_savers.Checkpointer(
-        objects_to_save={
-          'counter': self._counter,
-          'policy': self._policy_network,
-          'critic': self._critic_network,
-          'target_policy': self._target_policy_network,
-          'target_critic': self._target_critic_network,
-          'policy_optimizer': self._policy_optimizer,
-          'critic_optimizer': self._critic_optimizer,
-          'num_steps': self._num_steps,
-        },
+        objects_to_save=self.state,
         time_delta_minutes=30.,
         directory=checkpoint_subpath,
         subdirectory='crr_learner'
@@ -229,7 +219,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
         self._target_policy_network.variables)
 
     # Make online -> target network update ops.
-    if tf.math.mod(self._num_steps, self._target_update_period) == 0:
+    if tf.math.mod(self._counter.get_counts()['learner_steps'], self._target_update_period) == 0:
       for src, dest in zip(source_variables, target_variables):
         dest.assign(src)
     self._num_steps.assign_add(1)
