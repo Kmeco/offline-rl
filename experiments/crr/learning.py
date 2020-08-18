@@ -52,7 +52,8 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       empirical_policy: dict = None,
       counter: Optional[counting.Counter] = None,
       logger: Optional[loggers.Logger] = None,
-      checkpoint: bool = True
+      checkpoint: bool = True,
+      checkpoint_subpath: str = '~/acme/'
   ):
     """Initializes the learner.
 
@@ -129,7 +130,10 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
           'critic_optimizer': self._critic_optimizer,
           'num_steps': self._num_steps,
         },
-        time_delta_minutes=30.)
+        time_delta_minutes=30.,
+        directory=checkpoint_subpath,
+        subdirectory='crr_learner'
+      )
 
     objects_to_save = {
       'raw_policy': policy_network,

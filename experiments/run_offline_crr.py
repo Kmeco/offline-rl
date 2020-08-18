@@ -1,4 +1,3 @@
-#@title Import modules.
 #python3
 import copy
 import os
@@ -34,6 +33,7 @@ flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
 flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
 flags.DEFINE_integer('epochs', 100, 'Number of epochs to run (samples only 1 transition per episode in each epoch).')
 flags.DEFINE_integer('seed', 1234, 'Random seed for replicable results. Set to 0 for no seed.')
+flags.DEFINE_integer('n_random_runs', 1, 'Run n runs with different random seeds and track them under one wb group.')
 
 # general learner config
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
@@ -49,73 +49,75 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
-    wb_run = wandb.init(project="offline-rl") if FLAGS.wandb else None
+    for _ in range(FLAGS.n_random_runs):
+        wb_run = wandb.init(project="offline-rl", group=FLAGS.logs_tag, config=FLAGS.flag_values_dict()) if FLAGS.wandb else None
 
-    if FLAGS.seed:
-        tf.random.set_seed(FLAGS.seed)
+        if FLAGS.seed:
+            tf.random.set_seed(FLAGS.seed)
 
-    # Create an environment and grab the spec.
-    environment = _build_environment(FLAGS.environment_name)
-    environment_spec = specs.make_environment_spec(environment)
+        # Create an environment and grab the spec.
+        environment = _build_environment(FLAGS.environment_name)
+        environment_spec = specs.make_environment_spec(environment)
 
-    # Load demonstration dataset.
-    dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
-    dataset = dataset.map(lambda *x:
-                          n_step_transition_from_episode(*x, n_step=FLAGS.n_step_returns,
-                                                         additional_discount=FLAGS.discount))
-    dataset = dataset.repeat().batch(FLAGS.batch_size, drop_remainder=True)
-    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+        # Load demonstration dataset.
+        dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
+        dataset = dataset.map(lambda *x:
+                              n_step_transition_from_episode(*x, n_step=FLAGS.n_step_returns,
+                                                             additional_discount=FLAGS.discount))
+        dataset = dataset.repeat().batch(FLAGS.batch_size, drop_remainder=True)
+        dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    # Create the critic network.
-    critic_network = snt.Sequential([
-      snt.Flatten(),
-      snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
-    ])
+        # Create the critic network.
+        critic_network = snt.Sequential([
+          snt.Flatten(),
+          snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
+        ])
 
-    policy_network = snt.Sequential([
-      copy.deepcopy(critic_network),
-      tfp.distributions.Categorical
-    ])
+        policy_network = snt.Sequential([
+          copy.deepcopy(critic_network),
+          tfp.distributions.Categorical
+        ])
 
-    behaviour_network = snt.Sequential([
-      policy_network,
-      networks.StochasticSamplingHead()
-    ])
+        behaviour_network = snt.Sequential([
+          policy_network,
+          networks.StochasticSamplingHead()
+        ])
 
-    counter = counting.Counter()
+        counter = counting.Counter() # TODO: checkpoint this for full logging state resuming
 
-    # Create the actor which defines how we take actions.
-    evaluation_actor = actors.FeedForwardActor(behaviour_network)
+        # Create the actor which defines how we take actions.
+        evaluation_actor = actors.FeedForwardActor(behaviour_network)
 
-    # Ensure that we create the variables before proceeding (maybe not needed).
-    tf2_utils.create_variables(policy_network, [environment_spec.observations])
-    tf2_utils.create_variables(critic_network, [environment_spec.observations])
+        # Ensure that we create the variables before proceeding (maybe not needed).
+        tf2_utils.create_variables(policy_network, [environment_spec.observations])
+        tf2_utils.create_variables(critic_network, [environment_spec.observations])
 
-    disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
+        disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
 
-    eval_loop = EnvironmentLoop(
-        environment=environment,
-        actor=evaluation_actor,
-        counter=counter,
-        logger=disp_loop)
+        eval_loop = EnvironmentLoop(
+            environment=environment,
+            actor=evaluation_actor,
+            counter=counter,
+            logger=disp_loop)
 
-    learner = CRRLearner(
-        policy_network=policy_network,
-        critic_network=critic_network,
-        dataset=dataset,
-        policy_improvement_modes=FLAGS.policy_improvement_mode,
-        logger=disp,
-        cql_alpha=FLAGS.cql_alpha,
-        empirical_policy=empirical_policy
-    )
+        learner = CRRLearner(
+            policy_network=policy_network,
+            critic_network=critic_network,
+            dataset=dataset,
+            policy_improvement_modes=FLAGS.policy_improvement_mode,
+            logger=disp,
+            cql_alpha=FLAGS.cql_alpha,
+            empirical_policy=empirical_policy,
+            checkpoint_subpath=os.path.join(wandb.run.dir, "acme/")
+        )
 
-    # Run the environment loop.
-    for _ in tqdm(range(FLAGS.epochs)):
-        for _ in range(FLAGS.evaluate_every):
-            learner.step()
-        eval_loop.run(FLAGS.evaluation_episodes)
+        # Run the environment loop.
+        for _ in tqdm(range(FLAGS.epochs)):
+            for _ in range(FLAGS.evaluate_every):
+                learner.step()
+            eval_loop.run(FLAGS.evaluation_episodes)
 
-    learner.save()
+        learner.save()
 
 
 if __name__ == '__main__':
