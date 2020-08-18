@@ -113,6 +113,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Internalise logging/counting objects.
     self._counter = counter or counting.Counter()
+    self._counter.increment(learner_steps=0)
     self._logger = logger or loggers.TerminalLogger('learner', time_delta=1.)
 
     # Create a checkpointer object.
