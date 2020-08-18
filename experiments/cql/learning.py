@@ -184,7 +184,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Report loss & statistics for logging.
     fetches = {
-        'loss': tf.reduce_mean(loss, axis=0),
+        'critic_loss': tf.reduce_mean(loss, axis=0),
         'push_up': tf.reduce_mean(push_up, axis=0),
         'push_down': tf.reduce_mean(push_down, axis=0),
         'regularizer': tf.reduce_mean(push_down - push_up, axis=0),

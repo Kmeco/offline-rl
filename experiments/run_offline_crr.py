@@ -50,7 +50,7 @@ config = FLAGS.flag_values_dict()
 
 
 def main(_):
-    for _ in range(FLAGS.n_random_runs):
+    for n in range(FLAGS.n_random_runs):
         wb_run = wandb.init(project="offline-rl",
                             group=FLAGS.logs_tag,
                             id=str(int(time.time())),
@@ -58,7 +58,7 @@ def main(_):
                             reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
 
         if FLAGS.seed:
-            tf.random.set_seed(FLAGS.seed)
+            tf.random.set_seed(FLAGS.seed + n)
 
         # Create an environment and grab the spec.
         environment = _build_environment(FLAGS.environment_name)
