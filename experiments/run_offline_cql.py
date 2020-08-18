@@ -62,20 +62,20 @@ def main(_):
         if FLAGS.seed:
             tf.random.set_seed(FLAGS.seed)
         # Create an environment and grab the spec.
-        environment = _build_environment()
+        environment = _build_environment(FLAGS.environment_name)
         environment_spec = specs.make_environment_spec(environment)
 
         # Load demonstration dataset.
         dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
         dataset = dataset.map(lambda *x:
                               n_step_transition_from_episode(*x, n_step=FLAGS.n_step_returns,
-                                                             additional_discount=1.))
+                                                             additional_discount=FLAGS.discount))
         dataset = dataset.repeat().batch(FLAGS.batch_size, drop_remainder=True)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         network = snt.Sequential([
           snt.Flatten(),
-          snt.nets.MLP([50, 50, environment_spec.actions.num_values])
+          snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values])
         ])
         # Create a target network.
         target_network = copy.deepcopy(network)
@@ -87,7 +87,6 @@ def main(_):
 
         counter = counting.Counter()
         learner_counter = counting.Counter(counter)
-
 
         # Create the actor which defines how we take actions.
         evaluation_network = actors.FeedForwardActor(policy_network)
