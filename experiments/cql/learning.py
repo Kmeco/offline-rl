@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """DQN learner implementation."""
-
+import copy
 import time
 from typing import Dict, List
 
@@ -36,7 +36,6 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
   def __init__(
       self,
       network: snt.Module,
-      target_network: snt.Module,
       discount: float,
       importance_sampling_exponent: float,
       learning_rate: float,
@@ -76,7 +75,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     # TODO(b/155086959): Fix type stubs and remove.
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
     self._network = network
-    self._target_network = target_network
+    self._target_network = copy.deepcopy(network)
     self._optimizer = snt.optimizers.Adam(learning_rate)
     self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
     self._eps = epsilon
@@ -208,7 +207,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     result.update(counts)
 
     # Snapshot and attempt to write logs.
-    if self._snapshotter is not None:
+    if self._checkpointer is not None:
       self._snapshotter.save()
       self._checkpointer.save()
 
@@ -216,7 +215,8 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
   def save(self):
     self._snapshotter.save(force=True)
-    self._checkpointer.save(force=True)
+    if self._checkpointer is not None:
+      self._checkpointer.save(force=True)
 
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)

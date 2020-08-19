@@ -17,7 +17,8 @@ from acme import specs
 import tensorflow as tf
 import sonnet as snt
 import tensorflow_probability as tfp
-from utils import n_step_transition_from_episode, load_tf_dataset, _build_environment, _build_custom_loggers
+from utils import n_step_transition_from_episode, load_tf_dataset, _build_environment, _build_custom_loggers, \
+  preprocess_dataset
 
 from acme.tf import utils as tf2_utils, networks
 from crr.learning import CRRLearner
@@ -46,7 +47,6 @@ flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
 flags.DEFINE_float('cql_alpha', 0.0, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
 FLAGS = flags.FLAGS
-config = FLAGS.flag_values_dict()
 
 
 def main(_):
@@ -54,7 +54,7 @@ def main(_):
         wb_run = wandb.init(project="offline-rl",
                             group=FLAGS.logs_tag,
                             id=str(int(time.time())),
-                            config=config,
+                            config=FLAGS.flag_values_dict(),
                             reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
 
         if FLAGS.seed:
@@ -66,13 +66,9 @@ def main(_):
 
         # Load demonstration dataset.
         dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
-        dataset = dataset.map(lambda *x:
-                              n_step_transition_from_episode(*x, n_step=FLAGS.n_step_returns,
-                                                             additional_discount=FLAGS.discount))
-        dataset = dataset.repeat().batch(FLAGS.batch_size, drop_remainder=True)
-        dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+        dataset = preprocess_dataset(dataset, FLAGS.batch_size, FLAGS.n_step_returns, FLAGS.discount)
 
-        # Create the critic network.
+        # Create the policy and critic networks.
         critic_network = snt.Sequential([
           snt.Flatten(),
           snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
@@ -88,15 +84,11 @@ def main(_):
           networks.StochasticSamplingHead()
         ])
 
-        counter = counting.Counter() # TODO: checkpoint this for full logging state resuming
-        learner_counter = counting.Counter(counter)
-
         # Create the actor which defines how we take actions.
         evaluation_actor = actors.FeedForwardActor(behaviour_network)
 
-        # Ensure that we create the variables before proceeding (maybe not needed).
-        tf2_utils.create_variables(policy_network, [environment_spec.observations])
-        tf2_utils.create_variables(critic_network, [environment_spec.observations])
+        counter = counting.Counter()
+        learner_counter = counting.Counter(counter)
 
         disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
 
@@ -116,7 +108,7 @@ def main(_):
             cql_alpha=FLAGS.cql_alpha,
             empirical_policy=empirical_policy,
             counter=learner_counter,
-            checkpoint_subpath=os.path.join(wandb.run.dir, "acme/")
+            checkpoint_subpath=os.path.join(wandb.run.dir, "acme/") if FLAGS.wandb else '~/acme/'
         )
 
         # Run the environment loop.

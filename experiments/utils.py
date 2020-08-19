@@ -235,6 +235,15 @@ def load_tf_dataset(directory='datasets'):
   return tf.data.Dataset.zip(tuple(parts)), spec['policy']
 
 
+def preprocess_dataset(dataset, batch_size, n_step_returns, discount):
+  dataset = dataset.map(lambda *x:
+                               n_step_transition_from_episode(*x, n_step=n_step_returns,
+                                                              additional_discount=discount))
+  dataset = dataset.repeat().batch(batch_size, drop_remainder=True)
+  dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+  return dataset
+
+
 def _nested_stack(sequence: List[Any]):
   """Stack nested elements in a sequence."""
   return tree.map_structure(lambda *x: np.stack(x), *sequence)

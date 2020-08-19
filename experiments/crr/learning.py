@@ -248,7 +248,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     self._walltime_timestamp = new_timestamp
 
     # Update our counts and record it.
-    counts = self._counter.increment(learner_steps=1, wall_time=time_passed)
+    counts = self._counter.increment(learner_steps=1, walltime=time_passed)
     fetches.update(counts)
 
     # Checkpoint and attempt to write the logs.
