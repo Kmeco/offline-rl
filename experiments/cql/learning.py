@@ -72,7 +72,6 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     """
 
     # Internalise agent components (replay buffer, networks, optimizer).
-    # TODO(b/155086959): Fix type stubs and remove.
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
     self._network = network
     self._target_network = copy.deepcopy(network)
@@ -81,6 +80,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     self._eps = epsilon
     self._emp_policy = empirical_policy
     self._replay_client = replay_client
+
 
     # Internalise the hyperparameters.
     self._discount = discount

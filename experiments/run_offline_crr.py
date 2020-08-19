@@ -85,6 +85,10 @@ def main(_):
           networks.StochasticSamplingHead()
         ])
 
+        # Ensure that we create the variables before proceeding (maybe not needed).
+        tf2_utils.create_variables(policy_network, [environment_spec.observations])
+        tf2_utils.create_variables(critic_network, [environment_spec.observations])
+
         # Create the actor which defines how we take actions.
         evaluation_actor = actors.FeedForwardActor(behaviour_network)
 

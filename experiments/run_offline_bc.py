@@ -1,10 +1,7 @@
-#@title Import modules.
 #python3
-import copy
 import time
 import os
-
-import wandb
+import trfl
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -14,18 +11,20 @@ from tqdm import tqdm
 
 from acme.agents.tf import actors
 
-from acme import EnvironmentLoop
+from acme.environment_loop import EnvironmentLoop
 from acme.utils import counting
 from acme import specs
 
-import trfl
 import tensorflow as tf
 import sonnet as snt
-from utils import n_step_transition_from_episode, load_tf_dataset, _build_environment, _build_custom_loggers, \
-    preprocess_dataset
+import tensorflow_probability as tfp
+from utils import load_tf_dataset, _build_environment, _build_custom_loggers, \
+  preprocess_dataset
 
 from acme.tf import utils as tf2_utils
-from cql.learning import CQLLearner
+from acme.agents.tf.bc import learning
+import wandb
+
 
 # general run config
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
@@ -46,7 +45,8 @@ flags.DEFINE_float('discount', 0.99, 'Discount factor.')
 flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
 
 # specific config
-flags.DEFINE_float('cql_alpha', 1.0, 'Scaling parameter for the offline loss regularizer.')
+flags.DEFINE_float('crr_beta', 1.0, 'Param for calculating the policy improvement coefficient.')
+flags.DEFINE_float('cql_alpha', 0.0, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
 FLAGS = flags.FLAGS
 
@@ -61,6 +61,7 @@ def main(_):
 
         if FLAGS.seed:
             tf.random.set_seed(FLAGS.seed + n)
+
         # Create an environment and grab the spec.
         environment = _build_environment(FLAGS.environment_name)
         environment_spec = specs.make_environment_spec(environment)
@@ -69,21 +70,24 @@ def main(_):
         dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
         dataset = preprocess_dataset(dataset, FLAGS.batch_size, FLAGS.n_step_returns, FLAGS.discount)
 
-        # Create the main critic network
-        critic_network = snt.Sequential([
-          snt.Flatten(),
-          snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values])
-        ])
-
+        # Create the policy and critic networks.
         policy_network = snt.Sequential([
-            critic_network,
-            lambda q: trfl.epsilon_greedy(q, epsilon=FLAGS.epsilon).sample(),
+          snt.Flatten(),
+          snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
         ])
 
-        tf2_utils.create_variables(critic_network, [environment_spec.observations])
+        # Ensure that we create the variables before proceeding (maybe not needed).
+        tf2_utils.create_variables(policy_network, [environment_spec.observations])
+
+        # If the agent is non-autoregressive use epsilon=0 which will be a greedy
+        # policy.
+        evaluator_network = snt.Sequential([
+          policy_network,
+          lambda q: trfl.epsilon_greedy(q, epsilon=FLAGS.epsilon).sample(),
+        ])
 
         # Create the actor which defines how we take actions.
-        evaluation_actor = actors.FeedForwardActor(policy_network)
+        evaluation_actor = actors.FeedForwardActor(evaluator_network)
 
         counter = counting.Counter()
         learner_counter = counting.Counter(counter)
@@ -96,26 +100,18 @@ def main(_):
             counter=counter,
             logger=disp_loop)
 
-        learner = CQLLearner(
-            network=critic_network,
-            dataset=dataset,
-            discount=0.99,
-            importance_sampling_exponent=0.2,
-            learning_rate=FLAGS.learning_rate,
-            cql_alpha=FLAGS.cql_alpha,
-            target_update_period=100,
-            empirical_policy=empirical_policy,
-            logger=disp,
-            counter=learner_counter,
-            checkpoint_subpath=os.path.join(wandb.run.dir, "acme/") if FLAGS.wandb else '~/acme/'
-        )
+        # The learner updates the parameters (and initializes them).
+        learner = learning.BCLearner(
+          network=policy_network,
+          learning_rate=FLAGS.learning_rate,
+          dataset=dataset,
+          counter=learner_counter)
 
         # Run the environment loop.
         for _ in tqdm(range(FLAGS.epochs)):
             for _ in range(FLAGS.evaluate_every):
                 learner.step()
             eval_loop.run(FLAGS.evaluation_episodes)
-        learner.save()
 
 
 if __name__ == '__main__':
