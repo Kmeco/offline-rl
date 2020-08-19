@@ -44,6 +44,7 @@ flags.DEFINE_float('discount', 0.99, 'Discount factor.')
 flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
 
 # specific config
+flags.DEFINE_float('crr_beta', 1.0, 'Param for calculating the policy improvement coefficient.')
 flags.DEFINE_float('cql_alpha', 0.0, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
 FLAGS = flags.FLAGS
@@ -104,9 +105,10 @@ def main(_):
             dataset=dataset,
             discount=0.99,
             policy_improvement_modes=FLAGS.policy_improvement_mode,
-            logger=disp,
+            beta=FLAGS.crr_beta,
             cql_alpha=FLAGS.cql_alpha,
             empirical_policy=empirical_policy,
+            logger=disp,
             counter=learner_counter,
             checkpoint_subpath=os.path.join(wandb.run.dir, "acme/") if FLAGS.wandb else '~/acme/'
         )
