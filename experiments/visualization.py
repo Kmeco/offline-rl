@@ -71,9 +71,6 @@ def plot_state_value(action_values):
   plt.title("$v(s)$")
 
 
-rows = ['Dir {}'.format(row) for row in [r"\rightarrow", r"\downarrow", r"\leftarrow", r"\uparrow"]]
-
-
 def plot_grid(obs):
   obs = obs.reshape(3, 6, 6)
   layout = (obs[0] == 2).astype(int) * (-1)

@@ -1,25 +1,22 @@
-#@title Import modules.
 #python3
 import os
-import time
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-import gym
-from gym_minigrid.wrappers import FullyObsWrapper
-from custom_env_wrappers import ImgFlatObsWrapper, CustomSinglePrecisionWrapper
+import time
 
 from absl import app
 from absl import flags
+import wandb
 
-from acme.wrappers import gym_wrapper
-from acme.utils import loggers
 from acme import specs
-from acme.utils.loggers.tf_summary import TFSummaryLogger
 
 from cql.agent import CQL
 from acme import EnvironmentLoop
 import sonnet as snt
 
 # Bsuite flags
+from utils import _build_environment, _build_custom_loggers
+
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
 flags.DEFINE_string('results_dir', '/tmp/bsuite', 'CSV results directory.')
 flags.DEFINE_string('logs_dir', 'logs-CQL-0', 'TB logs directory')
@@ -33,38 +30,15 @@ flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calcula
 FLAGS = flags.FLAGS
 
 
-#util
-def _build_custom_loggers():
-    tag = str(int(time.time())) + \
-          "_" + str(FLAGS.cql_alpha) + "|" \
-          + str(FLAGS.n_step_returns) + "|" \
-          + FLAGS.logs_tag
-
-    logs_dir = os.path.join(FLAGS.logs_dir, tag)
-    terminal_logger = loggers.TerminalLogger(label='learner', time_delta=10)
-    tb_logger = TFSummaryLogger(logdir=logs_dir, label='learner')
-    disp = loggers.Dispatcher([terminal_logger, tb_logger])
-
-    terminal_logger = loggers.TerminalLogger(label='Loop', time_delta=10)
-    tb_logger = TFSummaryLogger(logdir=logs_dir, label='Loop')
-    disp_loop = loggers.Dispatcher([terminal_logger, tb_logger])
-
-    return disp, disp_loop
-
-
-def _build_environment(n_actions=3, max_steps=500):
-    raw_env = gym.make(FLAGS.environment_name)
-    raw_env.action_space.n = n_actions
-    raw_env.max_steps = max_steps
-    env = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
-    env = gym_wrapper.GymWrapper(env)
-    env = CustomSinglePrecisionWrapper(env)
-    return env
-
-
 def main(_):
+  wb_run = wandb.init(project="offline-rl",
+                      group=FLAGS.logs_tag,
+                      id=str(int(time.time())),
+                      config=FLAGS.flag_values_dict(),
+                      reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
+
   # Create an environment and grab the spec.
-  environment = _build_environment()
+  environment = _build_environment(FLAGS.environment_name)
   environment_spec = specs.make_environment_spec(environment)
 
   network = snt.Sequential([
@@ -72,7 +46,7 @@ def main(_):
       snt.nets.MLP([50, 50, environment_spec.actions.num_values])
   ])
 
-  disp, disp_loop = _build_custom_loggers()
+  disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
 
   # Construct the agent.
   agent = CQL(
@@ -90,4 +64,3 @@ def main(_):
 
 if __name__ == '__main__':
   app.run(main)
-

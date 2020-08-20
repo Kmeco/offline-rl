@@ -17,7 +17,7 @@ from acme import specs
 import tensorflow as tf
 import sonnet as snt
 import tensorflow_probability as tfp
-from utils import n_step_transition_from_episode, load_tf_dataset, _build_environment, _build_custom_loggers, \
+from utils import load_tf_dataset, _build_environment, _build_custom_loggers, \
   preprocess_dataset
 
 from acme.tf import utils as tf2_utils, networks
