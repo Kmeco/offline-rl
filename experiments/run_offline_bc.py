@@ -1,10 +1,9 @@
 #python3
 import time
 import os
-import trfl
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+import trfl
 from absl import app
 from absl import flags
 from tqdm import tqdm

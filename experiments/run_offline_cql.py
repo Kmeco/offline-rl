@@ -6,6 +6,8 @@ import os
 
 import wandb
 
+from visualization import evaluate_q, visualize_policy
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from absl import app
@@ -115,6 +117,9 @@ def main(_):
             for _ in range(FLAGS.evaluate_every):
                 learner.step()
             eval_loop.run(FLAGS.evaluation_episodes)
+            Q = evaluate_q(learner._network)
+            plot = visualize_policy(Q, environment.step(0).observation)
+            wb_run.log({'chart': plot})
         learner.save()
 
 
