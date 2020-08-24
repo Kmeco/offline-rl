@@ -138,7 +138,6 @@ class CQL(agent.Agent):
     # The learner updates the parameters (and initializes them).
     learner = CQLLearner(
         network=network,
-        target_network=target_network,
         discount=discount,
         importance_sampling_exponent=importance_sampling_exponent,
         learning_rate=learning_rate,
