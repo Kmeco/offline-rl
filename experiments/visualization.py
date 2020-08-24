@@ -1,5 +1,6 @@
-import numpy as np
 import copy
+import numpy as np
+import tensorflow as tf
 import matplotlib.pyplot as plt
 
 
@@ -29,7 +30,7 @@ def get_full_observation(state):
   obs = copy.copy(base)
   obs[0, state[0], state[1]] = 10
   obs[2, state[0], state[1]] = state[2]
-  return obs
+  return tf.convert_to_tensor(obs.reshape(1, -1))
 
 
 def evaluate_q(critic_network):
@@ -47,7 +48,7 @@ def evaluate_q(critic_network):
       for k in range(4):
         state = (i, j, k)
         obs = get_full_observation(state)
-        Q[k, i, j] = critic_network(obs.reshape(1, -1)).numpy()
+        Q[k, i, j] = critic_network(obs).numpy()
   return Q
 
 
