@@ -229,7 +229,7 @@ def compute_empirical_policy(dataset: tf.data.Dataset):
   the given dataset.
   """
   empirical_policy = {}
-  for e in dataset:
+  for e in tqdm(dataset):
     for o, a in zip(e[0], e[1]):
       if empirical_policy.get(str(o)) is not None:
         empirical_policy[str(o)][0][a] += 1

@@ -24,7 +24,7 @@ import trfl
 import tensorflow as tf
 import sonnet as snt
 from utils import n_step_transition_from_episode, load_tf_dataset, _build_environment, _build_custom_loggers, \
-    preprocess_dataset
+    preprocess_dataset, compute_empirical_policy
 
 from acme.tf import utils as tf2_utils
 from cql.learning import CQLLearner
@@ -68,8 +68,10 @@ def main(_):
         environment_spec = specs.make_environment_spec(environment)
 
         # Load demonstration dataset.
-        dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
-        dataset = preprocess_dataset(dataset, FLAGS.batch_size, FLAGS.n_step_returns, FLAGS.discount)
+        raw_dataset = load_tf_dataset(directory=FLAGS.dataset_dir)
+        empirical_policy = compute_empirical_policy(raw_dataset)
+
+        dataset = preprocess_dataset(raw_dataset, FLAGS.batch_size, FLAGS.n_step_returns, FLAGS.discount)
 
         # Create the main critic network
         critic_network = snt.Sequential([

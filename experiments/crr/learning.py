@@ -188,11 +188,10 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       critic_loss = tf.reduce_mean(critic_loss)
 
       if self._alpha:
-        counts = tf.map_fn(fn=lambda o: self._emp_policy[str(o.numpy())], elems=o_tm1)
-        policy_probs = tf.convert_to_tensor(counts / tf.reshape(np.sum(counts, axis=1), (-1, 1)), dtype=q_tm1.dtype)
+        policy_probs = self._emp_policy.lookup([str(o) for o in o_tm1])
 
-        push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
-        push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
+        push_down = tf.reduce_logsumexp(q_tm1, axis=1)  # soft-maximum of the q func
+        push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)  # expected q value under behavioural policy
 
         cql_loss = critic_loss + self._alpha * (push_down - push_up)
 

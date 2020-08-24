@@ -75,11 +75,11 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Internalise agent components (replay buffer, networks, optimizer).
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-    self._emp_policy = compute_empirical_policy(dataset)
     self._network = network
     self._target_network = copy.deepcopy(network)
     self._optimizer = snt.optimizers.Adam(learning_rate)
     self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
+    self._emp_policy = empirical_policy
     self._eps = epsilon
     self._replay_client = replay_client
 
@@ -155,7 +155,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
         cql_loss = loss + self._alpha * (push_down - push_up)
 
-        loss = tf.reduce_mean(cql_loss, axis=[0])  # []
+        loss = tf.reduce_mean(cql_loss, axis=0)
 
     # Do a step of SGD.
     gradients = tape.gradient(loss, self._network.trainable_variables)
