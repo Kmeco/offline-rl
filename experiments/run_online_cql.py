@@ -27,24 +27,26 @@ flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss re
 flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
 flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calculating TD(n)')
 flags.DEFINE_boolean('wandb', False, 'Whether to log results to wandb.')
-
+flags.DEFINE_string('wandb_id', '', 'Specific wandb id if you wish to continue in a checkpoint.')
+flags.DEFINE_integer('batch_size', 256, 'Batch size for the learner.')
+flags.DEFINE_integer('ep_max_len', 500, 'Maximum length of an episode.')
 FLAGS = flags.FLAGS
 
 
 def main(_):
   wb_run = wandb.init(project="offline-rl",
                       group=FLAGS.logs_tag,
-                      id=str(int(time.time())),
+                      id=FLAGS.wandb_id or str(int(time.time())),
                       config=FLAGS.flag_values_dict(),
                       reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
 
   # Create an environment and grab the spec.
-  environment = _build_environment(FLAGS.environment_name)
+  environment = _build_environment(FLAGS.environment_name, max_steps = FLAGS.ep_max_len)
   environment_spec = specs.make_environment_spec(environment)
 
   network = snt.Sequential([
       snt.Flatten(),
-      snt.nets.MLP([50, 50, environment_spec.actions.num_values])
+      snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values])
   ])
 
   disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
@@ -64,6 +66,8 @@ def main(_):
   loop = EnvironmentLoop(environment, agent, logger=disp_loop)
   loop.run(num_episodes=FLAGS.n_episodes)  # pytype: disable=attribute-error
   agent.save()
+  wandb.save(agent._learner._checkpointer._checkpoint_dir)
+  wandb.run.summary.update({"checkpoint_dir": agent._learner._checkpointer._checkpoint_dir})
 
 
 if __name__ == '__main__':
