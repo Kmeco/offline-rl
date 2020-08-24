@@ -149,7 +149,6 @@ class DemonstrationRecorder:
     self.env = env
     self._env_spec = specs.make_environment_spec(env)
     self.agent = agent
-    self.empirical_policy = {}
     self._prev_observation = None
 
   def collect_episode(self):
@@ -164,7 +163,6 @@ class DemonstrationRecorder:
     self._prev_observation = timestep.observation
     while not timestep.last():
       action = self.agent.select_action(self._prev_observation)
-      self._update_policy_counts(self._prev_observation, action)
       timestep = self.env.step(action)
       self._record_step(timestep, action)
       self._prev_observation = timestep.observation
@@ -176,12 +174,6 @@ class DemonstrationRecorder:
   def collect_n_episodes(self, n):
     for _ in tqdm(range(n)):
       self.collect_episode()
-
-  def _update_policy_counts(self, observation, action):
-    if self.empirical_policy.get(str(observation)) is not None:
-      self.empirical_policy[str(observation)][action] += 1
-    else:
-      self.empirical_policy[str(observation)] = np.zeros(self._env_spec.actions.num_values)
 
   def _record_step(self, timestep, action):
     reward = np.array(timestep.reward or 0, np.float32)
@@ -197,7 +189,6 @@ class DemonstrationRecorder:
     self.shapes = ((None, self._episodes[0][0].shape[1]), (None,), (None,), (None,))
 
     self.ds = tf.data.Dataset.from_generator(lambda: self._episodes, self.types, self.shapes)
-    # .repeat().shuffle(len(dr._episodes))
     return self.ds
 
   @tf.autograph.experimental.do_not_convert
@@ -207,8 +198,7 @@ class DemonstrationRecorder:
     os.makedirs(directory, exist_ok=True)
 
     spec = {'types': self.types,
-            'shapes': self.shapes,
-            'policy': self.empirical_policy}
+            'shapes': self.shapes}
 
     spec_file = os.path.join(directory, 'spec.pkl')
     with open(spec_file, 'wb') as f:
@@ -260,7 +250,7 @@ def load_tf_dataset(directory='datasets'):
     file_path = os.path.join(directory, f'offline_data.{i}.tfrecord')
     parts.append(tf.data.TFRecordDataset(file_path, compression_type='GZIP').map(
       lambda x: tf.io.parse_tensor(x, dtype)))
-  return tf.data.Dataset.zip(tuple(parts)), spec['policy']
+  return tf.data.Dataset.zip(tuple(parts))
 
 
 def preprocess_dataset(dataset, batch_size, n_step_returns, discount):

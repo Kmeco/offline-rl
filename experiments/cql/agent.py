@@ -23,7 +23,7 @@ from acme.adders import reverb as adders
 from acme.agents import agent
 from acme.agents.tf import actors
 from acme.tf import utils as tf2_utils
-from acme.utils import loggers
+from acme.utils import loggers, counting
 from cql.learning import CQLLearner
 import reverb
 import sonnet as snt
@@ -58,6 +58,7 @@ class CQL(agent.Agent):
       discount: float = 0.99,
       cql_alpha: float = 1.,
       logger: loggers.Logger = None,
+      counter: counting.Counter = None,
       checkpoint: bool = True,
       checkpoint_subpath: str = '~/acme/',
   ):
@@ -145,6 +146,7 @@ class CQL(agent.Agent):
         dataset=dataset,
         replay_client=replay_client,
         logger=logger,
+        counter=counter,
         checkpoint=checkpoint,
         checkpoint_subpath=checkpoint_subpath
     )

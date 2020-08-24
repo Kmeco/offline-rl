@@ -109,7 +109,6 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
         'critic': self._target_critic_network.variables,
         'policy': self._target_policy_network.variables,
     }
-    self._num_steps = tf.Variable(0, dtype=tf.int32)
 
     # Internalise logging/counting objects.
     self._counter = counter or counting.Counter()
@@ -222,7 +221,6 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     if tf.math.mod(self._counter.get_counts()['learner_steps'], self._target_update_period) == 0:
       for src, dest in zip(source_variables, target_variables):
         dest.assign(src)
-    self._num_steps.assign_add(1)
 
     metrics = {
       'critic_loss': critic_loss,
@@ -275,7 +273,6 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       'target_critic': self._target_critic_network,
       'policy_optimizer': self._policy_optimizer,
       'critic_optimizer': self._critic_optimizer,
-      'num_steps': self._num_steps,
     }
 
 

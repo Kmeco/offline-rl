@@ -1,7 +1,6 @@
 #python3
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
 import time
 
 from absl import app
@@ -11,6 +10,7 @@ import wandb
 from acme import specs
 
 from cql.agent import CQL
+from acme.utils import counting
 from acme import EnvironmentLoop
 import sonnet as snt
 
@@ -51,6 +51,9 @@ def main(_):
 
   disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
 
+  counter = counting.Counter()
+  learner_counter = counting.Counter(counter)
+
   # Construct the agent.
   agent = CQL(
       environment_spec=environment_spec,
@@ -58,12 +61,13 @@ def main(_):
       n_step=FLAGS.n_steps,
       epsilon=FLAGS.epsilon,
       cql_alpha=FLAGS.cql_alpha,
+      counter=learner_counter,
       logger=disp,
       checkpoint_subpath=os.path.join(wandb.run.dir, "acme/") if FLAGS.wandb else '~/acme/'
   )
 
   # Run the environment loop.
-  loop = EnvironmentLoop(environment, agent, logger=disp_loop)
+  loop = EnvironmentLoop(environment, agent, counter=counter, logger=disp_loop)
   loop.run(num_episodes=FLAGS.n_episodes)  # pytype: disable=attribute-error
   agent.save()
   wandb.save(agent._learner._checkpointer._checkpoint_dir)

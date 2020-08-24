@@ -110,9 +110,7 @@ def main(_):
             target_update_period=100,
             empirical_policy=empirical_policy,
             logger=disp,
-            counter=learner_counter,
-            checkpoint_subpath=os.path.join(wandb.run.dir, "acme/") if FLAGS.wandb else '~/acme/'
-        )
+            counter=learner_counter)
 
         # Run the environment loop.
         for _ in tqdm(range(FLAGS.epochs)):

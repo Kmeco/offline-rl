@@ -92,10 +92,11 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Learner state.
     self._variables: List[List[tf.Tensor]] = [network.trainable_variables]
-    self._num_steps = tf.Variable(0, dtype=tf.int32)
 
     # Internalise logging/counting objects.
     self._counter = counter or counting.Counter()
+    self._counter.increment(learner_steps=0)
+
     self._logger = logger or loggers.TerminalLogger('learner', time_delta=1.)
 
     # Create a snapshotter object.
@@ -168,11 +169,9 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
           table=adders.DEFAULT_PRIORITY_TABLE, keys=keys, priorities=priorities)
 
     # Periodically update the target network.
-    if tf.math.mod(self._num_steps, self._target_update_period) == 0:
-      for src, dest in zip(self._network.variables,
-                           self._target_network.variables):
+    if tf.math.mod(self._counter.get_counts()['learner_steps'], self._target_update_period) == 0:
+      for src, dest in zip(self._network.variables, self._target_network.variables):
         dest.assign(src)
-    self._num_steps.assign_add(1)
 
     # Report loss & statistics for logging.
     fetches = {
@@ -223,5 +222,5 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
         'network': self._network,
         'target_network': self._target_network,
         'optimizer': self._optimizer,
-        'num_steps': self._num_steps
+        'counter': self._counter
     }
