@@ -146,16 +146,9 @@ class CQL(agent.Agent):
         dataset=dataset,
         replay_client=replay_client,
         logger=logger,
-        checkpoint=checkpoint)
-
-    if checkpoint:
-      self._checkpointer = tf2_savers.Checkpointer(
-          directory=checkpoint_subpath,
-          objects_to_save=learner.state,
-          subdirectory='dqn_learner',
-          time_delta_minutes=60.)
-    else:
-      self._checkpointer = None
+        checkpoint=checkpoint,
+        checkpoint_subpath=checkpoint_subpath
+    )
 
     super().__init__(
         actor=actor,
@@ -165,9 +158,6 @@ class CQL(agent.Agent):
 
   def update(self):
     super().update()
-    if self._checkpointer is not None:
-      self._checkpointer.save()
 
   def save(self):
     self._learner.save()
-    self._checkpointer.save(force=True)

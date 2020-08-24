@@ -55,12 +55,15 @@ def main(_):
       n_step=FLAGS.n_steps,
       epsilon=FLAGS.epsilon,
       cql_alpha=FLAGS.cql_alpha,
-      logger=disp)
+      logger=disp,
+      checkpoint_subpath=os.path.join(wandb.run.dir, "acme/") if FLAGS.wandb else '~/acme/'
+  )
 
   # Run the environment loop.
   loop = EnvironmentLoop(environment, agent, logger=disp_loop)
   loop.run(num_episodes=FLAGS.n_episodes)  # pytype: disable=attribute-error
   agent.save()
+
 
 if __name__ == '__main__':
   app.run(main)
