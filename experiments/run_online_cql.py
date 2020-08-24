@@ -26,6 +26,7 @@ flags.DEFINE_float('epsilon', 0.3, 'Epsilon for e-greedy actor policy.')
 flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
 flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calculating TD(n)')
+flags.DEFINE_boolean('wandb', False, 'Whether to log results to wandb.')
 
 FLAGS = flags.FLAGS
 

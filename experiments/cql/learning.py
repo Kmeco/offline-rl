@@ -31,6 +31,8 @@ import sonnet as snt
 import tensorflow as tf
 import trfl
 
+from utils import compute_empirical_policy
+
 
 class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
   def __init__(
@@ -73,12 +75,12 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Internalise agent components (replay buffer, networks, optimizer).
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
+    self._emp_policy = compute_empirical_policy(dataset)
     self._network = network
     self._target_network = copy.deepcopy(network)
     self._optimizer = snt.optimizers.Adam(learning_rate)
     self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
     self._eps = epsilon
-    self._emp_policy = empirical_policy
     self._replay_client = replay_client
 
 
@@ -120,7 +122,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
   it takes a replay client as well to allow for updating of priorities.
   """
 
-  # @tf.function
+  @tf.function
   def _step(self) -> Dict[str, tf.Tensor]:
     """Do a step of SGD and update the priorities."""
 
@@ -145,27 +147,18 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
                                        q_t_selector)
       loss = losses.huber(extra.td_error, self._huber_loss_parameter)
 
-      n_actions = q_tm1.shape[-1]
+      if self._alpha:
+        policy_probs = self._emp_policy.lookup([str(o) for o in o_tm1])
 
-      if self._emp_policy is None:
-        # create a mask of epsilon-greedy policy probabilities for the batch
-        best_action = tf.argmax(q_tm1, 1, output_type=tf.int32)
-        explore_probs = tf.ones(q_tm1.shape, dtype=q_tm1.dtype) * (self._eps / n_actions)
-        greedy_probs = tf.one_hot(best_action, n_actions, dtype=q_tm1.dtype) * (1-self._eps)
-        policy_probs = explore_probs + greedy_probs
-      else:
-        counts = tf.map_fn(fn=lambda o: self._emp_policy[str(o.numpy())], elems=o_tm1)
-        policy_probs = tf.convert_to_tensor(counts / tf.reshape(np.sum(counts, axis=1), (-1, 1)), dtype=q_tm1.dtype)
+        push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
+        push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
 
-      push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
-      push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
+        cql_loss = loss + self._alpha * (push_down - push_up)
 
-      cql_loss = loss + self._alpha * (push_down - push_up)
-
-      cql_loss = tf.reduce_mean(cql_loss, axis=[0])  # []
+        loss = tf.reduce_mean(cql_loss, axis=[0])  # []
 
     # Do a step of SGD.
-    gradients = tape.gradient(cql_loss, self._network.trainable_variables)
+    gradients = tape.gradient(loss, self._network.trainable_variables)
     self._optimizer.apply(gradients, self._network.trainable_variables)
 
     # Update the priorities in the replay buffer.
@@ -184,13 +177,15 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     # Report loss & statistics for logging.
     fetches = {
         'critic_loss': tf.reduce_mean(loss, axis=0),
-        'push_up': tf.reduce_mean(push_up, axis=0),
-        'push_down': tf.reduce_mean(push_down, axis=0),
-        'regularizer': tf.reduce_mean(push_down - push_up, axis=0),
-        'cql_loss': cql_loss,
         'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0),
         'q_average': tf.reduce_mean(q_tm1)  #TODO: add target Q, sclar policy probs, max Q and averge Q
     }
+    if self._alpha:
+      fetches.update({'push_up': tf.reduce_mean(push_up, axis=0),
+                      'push_down': tf.reduce_mean(push_down, axis=0),
+                      'regularizer': tf.reduce_mean(push_down - push_up, axis=0),
+                      'cql_loss': tf.reduce_mean(push_up, axis=0),
+                      })
     return fetches
 
   def step(self):

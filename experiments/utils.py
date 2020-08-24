@@ -221,6 +221,34 @@ class DemonstrationRecorder:
       writer.write(ds_i)
 
 
+def compute_empirical_policy(dataset: tf.data.Dataset):
+  """
+  Input dataset and this function will return a tensorflow lookup table
+  that maps observation to a tensor of action dimension that contains
+  probabilities of each actions being taken for each observation within
+  the given dataset.
+  """
+  empirical_policy = {}
+  for e in dataset:
+    for o, a in zip(e[0], e[1]):
+      if empirical_policy.get(str(o)) is not None:
+        empirical_policy[str(o)][0][a] += 1
+      else:
+        empirical_policy[str(o)] = (np.zeros(3), o)
+
+  counts, obs = zip(*empirical_policy.values())  # unzip
+  counts = [tf.convert_to_tensor(i / sum(i), dtype=tf.float32) for i in counts]
+  obs = [str(o) for o in obs]
+
+  table = tf.lookup.experimental.DenseHashTable(key_dtype=tf.string,
+                                                value_dtype=tf.float32,
+                                                default_value=[-1., -1., -1.],
+                                                empty_key='',
+                                                deleted_key='del')
+  table.insert(obs, counts)
+  return table
+
+
 @tf.autograph.experimental.do_not_convert
 def load_tf_dataset(directory='datasets'):
   spec_path = os.path.join(directory, 'spec.pkl')
