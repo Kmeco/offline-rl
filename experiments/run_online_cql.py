@@ -23,6 +23,8 @@ flags.DEFINE_string('logs_dir', 'logs-CQL-0', 'TB logs directory')
 flags.DEFINE_string('logs_tag', 'tag', 'Tag a specific run for logging in TB.')
 flags.DEFINE_boolean('overwrite', False, 'Whether to overwrite csv results.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for e-greedy actor policy.')
+flags.DEFINE_float('learning_rate', 1e-3, 'Learning rate.')
+flags.DEFINE_integer('samples_per_insert', 32, 'How many updates to do for each env step.')
 flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
 flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calculating TD(n)')
@@ -61,6 +63,8 @@ def main(_):
       n_step=FLAGS.n_steps,
       epsilon=FLAGS.epsilon,
       cql_alpha=FLAGS.cql_alpha,
+      samples_per_insert=FLAGS.samples_per_insert,
+      learning_rate=FLAGS.learing_rate,
       counter=learner_counter,
       logger=disp)
 
