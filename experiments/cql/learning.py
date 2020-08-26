@@ -31,10 +31,15 @@ import sonnet as snt
 import tensorflow as tf
 import trfl
 
-from utils import compute_empirical_policy
-
 
 class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
+  """CQL learner.
+
+  This is the learning component of a CQL agent. It takes a dataset as input
+  and implements update functionality to learn from this dataset. It colapses
+  to a regular DQN when alpha = 0. When run online as DQN, it optionally
+  takes a replay client as well to allow for updating of priorities.
+  """
   def __init__(
       self,
       network: snt.Module,
@@ -116,14 +121,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     # fill the replay buffer.
     self._timestamp = None
 
-  """DQN learner.
-
-  This is the learning component of a DQN agent. It takes a dataset as input
-  and implements update functionality to learn from this dataset. Optionally
-  it takes a replay client as well to allow for updating of priorities.
-  """
-
-  @tf.function
+  # @tf.function
   def _step(self) -> Dict[str, tf.Tensor]:
     """Do a step of SGD and update the priorities."""
 

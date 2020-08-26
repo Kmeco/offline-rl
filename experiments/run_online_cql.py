@@ -46,7 +46,7 @@ def main(_):
 
   network = snt.Sequential([
       snt.Flatten(),
-      snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values])
+      snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]) # TODO: try sigmoid
   ])
 
   disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
@@ -62,16 +62,17 @@ def main(_):
       epsilon=FLAGS.epsilon,
       cql_alpha=FLAGS.cql_alpha,
       counter=learner_counter,
-      logger=disp,
-      checkpoint_subpath=os.path.join(wandb.run.dir, "acme/") if FLAGS.wandb else '~/acme/'
-  )
+      logger=disp)
 
   # Run the environment loop.
   loop = EnvironmentLoop(environment, agent, counter=counter, logger=disp_loop)
   loop.run(num_episodes=FLAGS.n_episodes)  # pytype: disable=attribute-error
   agent.save()
-  wandb.save(agent._learner._checkpointer._checkpoint_dir)
-  wandb.run.summary.update({"checkpoint_dir": agent._learner._checkpointer._checkpoint_dir})
+  artifact = wandb.Artifact('acme_checkpoint', type='model')
+  dir_name = agent._learner._checkpointer._checkpoint_dir.split('checkpoints')[0]
+  artifact.add_dir(dir_name)
+  wb_run.log_artifact(artifact)
+  wandb.run.summary.update({"checkpoint_dir": dir_name})
 
 
 if __name__ == '__main__':
