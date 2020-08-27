@@ -19,6 +19,7 @@ import time
 from typing import Dict, List
 
 import acme
+import wandb
 from acme.adders import reverb as adders
 from acme.tf import losses
 from acme.tf import savers as tf2_savers
@@ -50,7 +51,6 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       cql_alpha: float,
       dataset: tf.data.Dataset,
       huber_loss_parameter: float = 1.,
-      epsilon: float = 0.3,
       empirical_policy: dict = None,
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
@@ -85,7 +85,6 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     self._optimizer = snt.optimizers.Adam(learning_rate)
     self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
     self._emp_policy = empirical_policy
-    self._eps = epsilon
     self._replay_client = replay_client
 
 
@@ -205,10 +204,15 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     self._logger.write(result)
 
-  def save(self):
+  def save(self, tag='default'):
     self._snapshotter.save(force=True)
     if self._checkpointer is not None:
       self._checkpointer.save(force=True)
+      artifact = wandb.Artifact('acme_checkpoint', type='model')
+      dir_name = self._checkpointer._checkpoint_dir.split('checkpoints')[0]
+      artifact.add_dir(dir_name, name=tag)
+      wandb.run.log_artifact(artifact)
+      wandb.run.summary.update({"checkpoint_dir": dir_name})
 
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)

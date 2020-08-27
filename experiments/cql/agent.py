@@ -160,5 +160,5 @@ class CQL(agent.Agent):
   def update(self):
     super().update()
 
-  def save(self):
-    self._learner.save()
+  def save(self, tag):
+    self._learner.save(tag)

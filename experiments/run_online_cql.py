@@ -73,12 +73,7 @@ def main(_):
   # Run the environment loop.
   loop = EnvironmentLoop(environment, agent, counter=counter, logger=disp_loop)
   loop.run(num_episodes=FLAGS.n_episodes)  # pytype: disable=attribute-error
-  agent.save()
-  artifact = wandb.Artifact('acme_checkpoint', type='model')
-  dir_name = agent._learner._checkpointer._checkpoint_dir.split('checkpoints')[0]
-  artifact.add_dir(dir_name)
-  wb_run.log_artifact(artifact)
-  wandb.run.summary.update({"checkpoint_dir": dir_name})
+  agent.save(tag=FLAGS.logs_tag)
 
 
 if __name__ == '__main__':

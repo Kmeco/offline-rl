@@ -43,7 +43,7 @@ flags.DEFINE_integer('n_random_runs', 1, 'Run n runs with different random seeds
 # general learner config
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for the epsilon greedy in the env.')
-flags.DEFINE_float('learning_rate', 1e-3, 'Learning rate.')
+flags.DEFINE_float('learning_rate', 1e-4, 'Learning rate.')
 flags.DEFINE_float('discount', 0.99, 'Discount factor.')
 flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
 
@@ -90,7 +90,6 @@ def main(_):
         evaluation_actor = actors.FeedForwardActor(policy_network)
 
         counter = counting.Counter()
-        learner_counter = counting.Counter(counter)
 
         disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
 
@@ -103,14 +102,14 @@ def main(_):
         learner = CQLLearner(
             network=critic_network,
             dataset=dataset,
-            discount=0.99,
+            discount=FLAGS.discount,
             importance_sampling_exponent=0.2,
             learning_rate=FLAGS.learning_rate,
             cql_alpha=FLAGS.cql_alpha,
             target_update_period=100,
             empirical_policy=empirical_policy,
             logger=disp,
-            counter=learner_counter)
+            counter=counter)
 
         # Run the environment loop.
         for _ in tqdm(range(FLAGS.epochs)):
@@ -120,7 +119,7 @@ def main(_):
             Q = evaluate_q(learner._network)
             plot = visualize_policy(Q, environment.step(0).observation)
             wb_run.log({'chart': plot})
-        learner.save()
+        learner.save(tag=FLAGS.logs_tag)
 
 
 if __name__ == '__main__':
