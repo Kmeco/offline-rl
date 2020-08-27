@@ -4,51 +4,51 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 
-base = np.array([[[2., 2., 2., 2., 2., 2.],
-                  [2., 1., 1., 1., 1., 2.],
-                  [2., 1., 1., 1., 1., 2.],
-                  [2., 1., 1., 1., 1., 2.],
-                  [2., 1., 1., 1., 8., 2.],
-                  [2., 2., 2., 2., 2., 2.]],
-
-                 [[5., 5., 5., 5., 5., 5.],
-                  [5., 0., 0., 0., 0., 5.],
-                  [5., 0., 0., 0., 0., 5.],
-                  [5., 0., 0., 0., 0., 5.],
-                  [5., 0., 0., 0., 1., 5.],
-                  [5., 5., 5., 5., 5., 5.]],
-
-                 [[0., 0., 0., 0., 0., 0.],
-                  [0., 0., 0., 0., 0., 0.],
-                  [0., 0., 0., 0., 0., 0.],
-                  [0., 0., 0., 0., 0., 0.],
-                  [0., 0., 0., 0., 0., 0.],
-                  [0., 0., 0., 0., 0., 0.]]], dtype=np.float32)
-
-
-def get_full_observation(state):
-  obs = copy.copy(base)
+def _get_full_observation(state, base_obs):
+  """"Given a 3dim compressed tuple state of the env,
+  construct a full observation."""
+  obs = copy.copy(base_obs)
   obs[0, state[0], state[1]] = 10
   obs[2, state[0], state[1]] = state[2]
   return tf.convert_to_tensor(obs.reshape(1, -1))
 
 
-def evaluate_q(critic_network):
+def _get_base_observation(environment):
+  """Given an environment, return an observation with no agent."""
+  obs = environment.reset().observation
+  true_shape = _get_true_env_shape(environment)
+  obs_base = obs.reshape(*true_shape)
+  obs_base[0][obs_base[0] == 10] = 1.
+  return obs_base, true_shape
+
+
+def _get_true_env_shape(environment):
+  """Beware this is a very custom made func."""
+  # remove all wrappers
+  raw_env = environment.environment.environment.env.env
+  obs_space = raw_env.observation_space['image']
+  shape_tuple = list(obs_space.shape)
+  shape_tuple.reverse()
+  return shape_tuple
+
+
+def evaluate_q(critic_network, env):
   """
   Q is an array of size (d, n, n, a) where:
   d is the number of directions: 4
   n is the size of the grid: 6
   a is a number of actions: 3
   """
-  Q = np.zeros((4, 6, 6, 3))
-  for i in range(1, 5):
-    for j in range(1, 5):
-      state = copy.copy(base)
-      state[0, i, j] = 10
-      for k in range(4):
-        state = (i, j, k)
-        obs = get_full_observation(state)
-        Q[k, i, j] = critic_network(obs).numpy()
+  obs_base, true_shape = _get_base_observation(env)
+
+  Q = np.zeros((4, *true_shape[1:], true_shape[0]))
+  for r, row in enumerate(obs_base[0]):
+    for c, col in enumerate(row):
+      if obs_base[0][r][c] == 1.:
+        for k in range(4):
+          state = (r, c, k)
+          full_obs = _get_full_observation(state, obs_base)
+          Q[k, r, c] = critic_network(full_obs).numpy()
   return Q
 
 
@@ -63,26 +63,24 @@ def plot_values(values, colormap='pink', vmin=0.8, vmax=1):
   plt.colorbar(ticks=[vmin, vmax])
 
 
-def plot_state_value(action_values):
-  q = action_values
-  vmin = np.min(action_values[action_values != 0])
-  vmax = np.max(action_values)
+def plot_state_value(q):
+  vmin = np.quantile(q.flatten()[q.flatten() != 0], 0.05)
+  vmax = np.max(q)
   v = 0.9 * np.max(q, axis=-1) + 0.1 * np.mean(q, axis=-1)
   plot_values(v, colormap='summer', vmin=vmin, vmax=vmax)
   plt.title("$v(s)$")
 
 
 def plot_grid(obs):
-  obs = obs.reshape(3, 6, 6)
   layout = (obs[0] == 2).astype(int) * (-1)
   plt.imshow(layout > -1, interpolation="nearest", cmap="YlOrRd_r")
   ax = plt.gca()
   ax.grid(0)
   plt.xticks([])
   plt.yticks([])
-  goal = (obs[0] == 8).astype(int)
+  goal = (obs[0] == 8.).astype(int)
   plt.text(
-    np.argmax(np.max(goal, axis=1)), np.argmax(np.max(goal, axis=0)),
+    np.argmax(np.max(goal, axis=0)), np.argmax(np.max(goal, axis=1)),
     r"$\mathbf{G}$", ha='center', va='center', size='large')
   h, w = layout.shape
   for y in range(h - 3):
@@ -91,23 +89,23 @@ def plot_grid(obs):
     plt.plot([x + 1.5, x + 1.5], [+0.5, h - 1.5], '-k', lw=2, alpha=0.5)
 
 
-def plot_greedy_policy(obs, q, dir):
-  action_names = lambda a, d: [r"$\circlearrowleft$", r"$\circlearrowright$", map_from_int_to_dir(d)][a]
+def plot_greedy_policy(q, env, dir):
   greedy_actions = np.argmax(q, axis=2)
+  obs, _ = _get_base_observation(env)
   plot_grid(obs)
   plt.title(f"The grid: {map_from_int_to_dir(dir)}", size='large')
-  for i in range(1, 5):
-    for j in range(1, 5):
-      action_name = action_names(greedy_actions[i, j], dir)
-      if (i != 4 or j != 4):
-        plt.text(j, i, action_name, ha='center', va='center', size='large')
+  for r, row in enumerate(obs[0]):
+    for c, col in enumerate(row):
+      if obs[0][r][c] == 1.:
+        action_name = map_from_action_to_name(greedy_actions[r, c], dir)
+        plt.text(c, r, action_name, ha='center', va='center', size='large')
 
 
-def visualize_policy(action_values, obs):
+def visualize_policy(action_values, env):
   q = action_values
   fig = plt.figure(figsize=(17, 12))
   fig.subplots_adjust(wspace=0.3, hspace=0.3)
-  vmin = np.min(action_values[action_values != 0])
+  vmin = np.quantile(q.flatten()[q.flatten() != 0], 0.05)
   vmax = np.max(action_values)
   dif = vmax - vmin
   for row in range(4):
@@ -119,8 +117,5 @@ def visualize_policy(action_values, obs):
     plt.subplot(4, 5, 5 * row + 4)
     plot_state_value(q[row])
     plt.subplot(4, 5, 5 * row + 5)
-    plot_greedy_policy(obs, q[row], row)
+    plot_greedy_policy(q[row], env, row)
   return plt
-
-#   for ax, row in zip(axes[:,0], rows):
-#     ax.set_ylabel(row, rotation=0, size='large')

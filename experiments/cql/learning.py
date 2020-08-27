@@ -151,9 +151,10 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
         push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
         push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
 
-        cql_loss = loss + self._alpha * (push_down - push_up)
 
-        loss = tf.reduce_mean(cql_loss, axis=0)
+      loss = loss + self._alpha * (push_down - push_up)
+
+      loss = tf.reduce_mean(loss, axis=0)
 
     # Do a step of SGD.
     gradients = tape.gradient(loss, self._network.trainable_variables)
@@ -172,7 +173,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Report loss & statistics for logging.
     fetches = {
-        'critic_loss': tf.reduce_mean(loss, axis=0),
+        'critic_loss': loss,
         'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0),
         'q_average': tf.reduce_mean(q_tm1)  #TODO: add target Q, sclar policy probs, max Q and averge Q
     }

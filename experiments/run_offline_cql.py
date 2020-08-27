@@ -42,7 +42,7 @@ flags.DEFINE_integer('seed', 1234, 'Random seed for replicable results. Set to 0
 flags.DEFINE_integer('n_random_runs', 1, 'Run n runs with different random seeds and track them under one wb group.')
 # general learner config
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
-flags.DEFINE_float('epsilon', 0.3, 'Epsilon for the epsilon greedy in the env.')
+flags.DEFINE_float('epsilon', 0.05, 'Epsilon for the epsilon greedy in the env.')
 flags.DEFINE_float('learning_rate', 1e-4, 'Learning rate.')
 flags.DEFINE_float('discount', 0.99, 'Discount factor.')
 flags.DEFINE_integer('n_step_returns', 5, 'Bootstrap after n steps.')
@@ -59,6 +59,7 @@ def main(_):
                             group=FLAGS.logs_tag,
                             id=str(int(time.time())),
                             config=FLAGS.flag_values_dict(),
+                            resume=FLAGS.acme_id is not None,
                             reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
 
         if FLAGS.seed:
@@ -116,9 +117,11 @@ def main(_):
             for _ in range(FLAGS.evaluate_every):
                 learner.step()
             eval_loop.run(FLAGS.evaluation_episodes)
-            Q = evaluate_q(learner._network)
-            plot = visualize_policy(Q, environment.step(0).observation)
+            # Visualization of the policy
+            Q = evaluate_q(learner._network, environment)
+            plot = visualize_policy(Q, environment)
             wb_run.log({'chart': plot})
+
         learner.save(tag=FLAGS.logs_tag)
 
 
