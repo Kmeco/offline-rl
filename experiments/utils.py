@@ -218,8 +218,10 @@ def compute_empirical_policy(dataset: tf.data.Dataset):
   probabilities of each actions being taken for each observation within
   the given dataset.
   """
+  print('_____Evaluating counts for all state action pairs_____ ')
   empirical_policy = {}
-  for e in tqdm(dataset):
+  dataset_len = sum([1 for _ in dataset])
+  for e in tqdm(dataset, total=dataset_len):
     for o, a in zip(e[0], e[1]):
       if empirical_policy.get(str(o)) is not None:
         empirical_policy[str(o)][0][a] += 1
@@ -227,7 +229,13 @@ def compute_empirical_policy(dataset: tf.data.Dataset):
         empirical_policy[str(o)] = (np.zeros(3), o)
 
   counts, obs = zip(*empirical_policy.values())  # unzip
-  counts = [tf.convert_to_tensor(i / sum(i), dtype=tf.float32) for i in counts]
+
+  def _normalize_to_tensor(array):
+    total = sum(array)
+    normed = array / total if total else array
+    return tf.convert_to_tensor(normed, dtype=tf.float32)
+
+  counts = [_normalize_to_tensor(i) for i in counts]
   obs = [str(o) for o in obs]
 
   table = tf.lookup.experimental.DenseHashTable(key_dtype=tf.string,
