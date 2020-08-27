@@ -24,6 +24,7 @@ flags.DEFINE_string('logs_tag', 'tag', 'Tag a specific run for logging in TB.')
 flags.DEFINE_boolean('overwrite', False, 'Whether to overwrite csv results.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for e-greedy actor policy.')
 flags.DEFINE_float('learning_rate', 1e-3, 'Learning rate.')
+flags.DEFINE_integer('max_replay_size', 10000, 'Maximum number of trajectories kept in the replay buffer.')
 flags.DEFINE_integer('samples_per_insert', 32, 'How many updates to do for each env step.')
 flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
@@ -40,6 +41,7 @@ def main(_):
                       group=FLAGS.logs_tag,
                       id=FLAGS.wandb_id or str(int(time.time())),
                       config=FLAGS.flag_values_dict(),
+                      resume=FLAGS.acme_id is not None,
                       reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
 
   # Create an environment and grab the spec.
@@ -54,7 +56,6 @@ def main(_):
   disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
 
   counter = counting.Counter()
-  learner_counter = counting.Counter(counter)
 
   # Construct the agent.
   agent = CQL(
@@ -63,9 +64,10 @@ def main(_):
       n_step=FLAGS.n_steps,
       epsilon=FLAGS.epsilon,
       cql_alpha=FLAGS.cql_alpha,
+      max_replay_size=FLAGS.max_replay_size,
       samples_per_insert=FLAGS.samples_per_insert,
-      learning_rate=FLAGS.learing_rate,
-      counter=learner_counter,
+      learning_rate=FLAGS.learning_rate,
+      counter=counter,
       logger=disp)
 
   # Run the environment loop.
