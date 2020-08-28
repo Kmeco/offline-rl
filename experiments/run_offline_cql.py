@@ -113,14 +113,14 @@ def main(_):
             counter=counter)
 
         # Run the environment loop.
-        for _ in tqdm(range(FLAGS.epochs)):
+        for e in tqdm(range(FLAGS.epochs)):
             for _ in range(FLAGS.evaluate_every):
                 learner.step()
             eval_loop.run(FLAGS.evaluation_episodes)
             # Visualization of the policy
             Q = evaluate_q(learner._network, environment)
             plot = visualize_policy(Q, environment)
-            wb_run.log({'chart': plot})
+            wb_run.log({'chart': plot, 'epoch_counter': e})
 
         learner.save(tag=FLAGS.logs_tag)
 

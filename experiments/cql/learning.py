@@ -55,7 +55,6 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
-      checkpoint: bool = True,
       checkpoint_subpath: str = '~/acme/'
   ):
     """Initializes the learner.
@@ -103,16 +102,15 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
 
     self._logger = logger or loggers.TerminalLogger('learner', time_delta=1.)
 
-    # Create a snapshotter object.
-    if checkpoint:
-      self._checkpointer = tf2_savers.Checkpointer(
-        objects_to_save=self.state,
-        time_delta_minutes=30.,
-        directory=checkpoint_subpath,
-        subdirectory='cql_learner'
-      )
+    # Create a checkpointer and snapshotter object.
+    self._checkpointer = tf2_savers.Checkpointer(
+      objects_to_save=self.state,
+      time_delta_minutes=10.,
+      directory=checkpoint_subpath,
+      subdirectory='cql_learner'
+    )
     self._snapshotter = tf2_savers.Snapshotter(
-        objects_to_save={'network': network}, time_delta_minutes=60.)
+        objects_to_save={'network': network}, time_delta_minutes=30.)
 
 
     # Do not record timestamps until after the first learning step is done.
@@ -151,8 +149,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
         push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
         push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
 
-
-      loss = loss + self._alpha * (push_down - push_up)
+        loss = loss + self._alpha * (push_down - push_up)
 
       loss = tf.reduce_mean(loss, axis=0)
 
@@ -175,7 +172,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     fetches = {
         'critic_loss': loss,
         'q_variance': tf.reduce_mean(tf.math.reduce_variance(q_tm1, axis=1), axis=0),
-        'q_average': tf.reduce_mean(q_tm1)  #TODO: add target Q, sclar policy probs, max Q and averge Q
+        'q_average': tf.reduce_mean(q_tm1)
     }
     if self._alpha:
       fetches.update({'push_up': tf.reduce_mean(push_up, axis=0),
@@ -199,21 +196,19 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     result.update(counts)
 
     # Snapshot and attempt to write logs.
-    if self._checkpointer is not None:
-      self._snapshotter.save()
-      self._checkpointer.save()
+    self._snapshotter.save()
+    self._checkpointer.save()
 
     self._logger.write(result)
 
   def save(self, tag='default'):
     self._snapshotter.save(force=True)
-    if self._checkpointer is not None:
-      self._checkpointer.save(force=True)
-      artifact = wandb.Artifact('acme_checkpoint', type='model')
-      dir_name = self._checkpointer._checkpoint_dir.split('checkpoints')[0]
-      artifact.add_dir(dir_name, name=tag)
-      wandb.run.log_artifact(artifact)
-      wandb.run.summary.update({"checkpoint_dir": dir_name})
+    self._checkpointer.save(force=True)
+    artifact = wandb.Artifact('acme_checkpoint', type='model')
+    dir_name = self._checkpointer._checkpoint_dir.split('checkpoints')[0]
+    artifact.add_dir(dir_name, name=tag)
+    wandb.run.log_artifact(artifact, name=tag)
+    wandb.run.summary.update({"checkpoint_dir": dir_name})
 
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)

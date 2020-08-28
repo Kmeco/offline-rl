@@ -20,6 +20,7 @@ import copy
 from typing import Dict, List, Optional
 
 import acme
+import wandb
 from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import counting
@@ -52,7 +53,6 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       empirical_policy: dict = None,
       counter: Optional[counting.Counter] = None,
       logger: Optional[loggers.Logger] = None,
-      checkpoint: bool = True,
       checkpoint_subpath: str = '~/acme/'
   ):
     """Initializes the learner.
@@ -115,15 +115,13 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     self._counter.increment(learner_steps=0)
     self._logger = logger or loggers.TerminalLogger('learner', time_delta=1.)
 
-    # Create a checkpointer object.
-    self._checkpointer = None
-    if checkpoint:
-      self._checkpointer = tf2_savers.Checkpointer(
-        objects_to_save=self.state,
-        time_delta_minutes=30.,
-        directory=checkpoint_subpath,
-        subdirectory='crr_learner'
-      )
+    # Create a checkpointer and snapshoter object.
+    self._checkpointer = tf2_savers.Checkpointer(
+      objects_to_save=self.state,
+      time_delta_minutes=10.,
+      directory=checkpoint_subpath,
+      subdirectory='crr_learner'
+    )
 
     objects_to_save = {
       'raw_policy': policy_network,
@@ -184,17 +182,16 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       policy_loss_batch *= policy_loss_coef_t
 
       policy_loss = tf.reduce_mean(policy_loss_batch)
-      critic_loss = tf.reduce_mean(critic_loss)
 
       if self._alpha:
         policy_probs = self._emp_policy.lookup([str(o) for o in o_tm1])
 
-        push_down = tf.reduce_logsumexp(q_tm1, axis=1)  # soft-maximum of the q func
-        push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)  # expected q value under behavioural policy
+        push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
+        push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
 
-        cql_loss = critic_loss + self._alpha * (push_down - push_up)
+        critic_loss = critic_loss + self._alpha * (push_down - push_up)
 
-        critic_loss = tf.reduce_mean(cql_loss, axis=0)
+      critic_loss = tf.reduce_mean(critic_loss, axis=0)
 
     # Compute gradients.
     critic_gradients = tape.gradient(critic_loss,
@@ -249,15 +246,19 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     fetches.update(counts)
 
     # Checkpoint and attempt to write the logs.
-    if self._checkpointer is not None:
-      self._checkpointer.save()
-      self._snapshotter.save()
+    self._checkpointer.save()
+    self._snapshotter.save()
 
     self._logger.write(fetches)
 
-  def save(self):
+  def save(self, tag='default'):
     self._snapshotter.save(force=True)
     self._checkpointer.save(force=True)
+    artifact = wandb.Artifact('acme_checkpoint', type='model')
+    dir_name = self._checkpointer._checkpoint_dir.split('checkpoints')[0]
+    artifact.add_dir(dir_name, name=tag)
+    wandb.run.log_artifact(artifact, name=tag)
+    wandb.run.summary.update({"checkpoint_dir": dir_name})
 
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)

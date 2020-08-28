@@ -2,6 +2,9 @@
 import copy
 import time
 import os
+
+from visualization import evaluate_q, visualize_policy
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from absl import app
@@ -120,12 +123,16 @@ def main(_):
         )
 
         # Run the environment loop.
-        for _ in tqdm(range(FLAGS.epochs)):
+        for e in tqdm(range(FLAGS.epochs)):
             for _ in range(FLAGS.evaluate_every):
                 learner.step()
             eval_loop.run(FLAGS.evaluation_episodes)
+            # Visualization of the policy
+            Q = evaluate_q(learner._critic_network, environment)
+            plot = visualize_policy(Q, environment)
+            wb_run.log({'chart': plot, 'epoch_counter': e})
 
-        learner.save()
+        learner.save(tag=FLAGS.logs_tag)
 
 
 if __name__ == '__main__':
