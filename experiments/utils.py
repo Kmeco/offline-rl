@@ -1,6 +1,7 @@
 import operator
 import os
 import time
+import wandb
 
 import gym
 import dm_env
@@ -23,9 +24,30 @@ from custom_env_wrappers import CustomSinglePrecisionWrapper, ImgFlatObsWrapper
 from gym_minigrid.wrappers import FullyObsWrapper
 
 
-def _build_custom_loggers(wb_client, tag):
-  tag = str(int(time.time())) + tag
+WANDB_PROJECT_PATH = 'kmeco/offline-rl/{}:latest'
 
+
+def init_or_resume(FLAGS):
+  if FLAGS.wandb_id:
+    wb_run = wandb.init(project="offline-rl", id=FLAGS.wandb_id, resume=True,
+                        reinit=True) if FLAGS.wandb else None
+
+    checkpoint_dir = wandb.run.summary['checkpoint_dir']
+    group = wandb.run.summary['group']
+
+    artifact = wb_run.use_artifact(WANDB_PROJECT_PATH.format(group), type='model')
+    artifact.download(root=checkpoint_dir)
+    FLAGS.acme_id = checkpoint_dir.split('/')[-2]
+  else:
+    wb_run = wandb.init(project="offline-rl",
+                        group=FLAGS.logs_tag,
+                        id=str(int(time.time())),
+                        config=FLAGS.flag_values_dict(),
+                        reinit=True) if FLAGS.wandb else None
+    return wb_run
+
+
+def _build_custom_loggers(wb_client):
   terminal_learner = loggers.TerminalLogger(label='Learner', time_delta=10)
   terminal_eval = loggers.TerminalLogger(label='EvalLoop', time_delta=10)
 

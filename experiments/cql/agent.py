@@ -59,7 +59,6 @@ class CQL(agent.Agent):
       cql_alpha: float = 1.,
       logger: loggers.Logger = None,
       counter: counting.Counter = None,
-      checkpoint: bool = True,
       checkpoint_subpath: str = '~/acme/',
   ):
     """Initialize the agent.
@@ -147,7 +146,6 @@ class CQL(agent.Agent):
         replay_client=replay_client,
         logger=logger,
         counter=counter,
-        checkpoint=checkpoint,
         checkpoint_subpath=checkpoint_subpath
     )
 
