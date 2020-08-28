@@ -22,7 +22,7 @@ flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env n
 flags.DEFINE_string('results_dir', '/tmp/bsuite', 'CSV results directory.')
 flags.DEFINE_string('wandb_id', '', 'Specific wandb id if you wish to continue in a checkpoint.')
 flags.DEFINE_string('logs_tag', 'tag', 'Tag a specific run for logging in TB.')
-flags.DEFINE_boolean('wandb', False, 'Whether to log results to wandb.')
+flags.DEFINE_boolean('wandb', True, 'Whether to log results to wandb.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for e-greedy actor policy.')
 flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
 flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calculating TD(n)')

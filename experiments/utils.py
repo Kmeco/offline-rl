@@ -36,11 +36,11 @@ def init_or_resume(FLAGS):
     checkpoint_dir = wandb.run.summary['checkpoint_dir']
     group = wandb.run.summary['group']
 
-    logging.info("Downloading model artifact from: " + WANDB_PROJECT_PATH, group)
+    logging.info("Downloading model artifact from: " + WANDB_PROJECT_PATH.format(group))
     artifact = wb_run.use_artifact(WANDB_PROJECT_PATH.format(group), type='model')
     download_dir = artifact.download(root=checkpoint_dir)
     FLAGS.acme_id = checkpoint_dir.split('/')[-2]
-    logging.info("Model checkpoint downloaded to: {}", download_dir)
+    logging.info("Model checkpoint downloaded to: {}".format(download_dir))
   else:
     wb_run = wandb.init(project="offline-rl",
                         group=FLAGS.logs_tag,
