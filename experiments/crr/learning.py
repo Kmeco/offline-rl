@@ -254,6 +254,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
   def save(self, tag='default'):
     self._snapshotter.save(force=True)
     self._checkpointer.save(force=True)
+
     artifact = wandb.Artifact(tag, type='model')
     dir_name = self._checkpointer._checkpoint_dir.split('checkpoints')[0]
     artifact.add_dir(dir_name)

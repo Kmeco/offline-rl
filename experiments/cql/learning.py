@@ -204,11 +204,12 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
   def save(self, tag='default'):
     self._snapshotter.save(force=True)
     self._checkpointer.save(force=True)
+
     artifact = wandb.Artifact(tag, type='model')
     dir_name = self._checkpointer._checkpoint_dir.split('checkpoints')[0]
     artifact.add_dir(dir_name)
     wandb.run.log_artifact(artifact)
-    wandb.run.summary.update({"checkpoint_dir": dir_name})
+    wandb.run.summary.update({"checkpoint_dir": dir_name, "group": tag})
 
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
     return tf2_utils.to_numpy(self._variables)
