@@ -11,6 +11,7 @@ import tensorflow as tf
 import numpy as np
 import pickle
 
+from absl import logging
 from acme.utils import loggers
 from acme.wrappers import gym_wrapper
 from tqdm import tqdm
@@ -29,15 +30,17 @@ WANDB_PROJECT_PATH = 'kmeco/offline-rl/{}:latest'
 
 def init_or_resume(FLAGS):
   if FLAGS.wandb_id:
-    wb_run = wandb.init(project="offline-rl", id=FLAGS.wandb_id, resume=True,
+    wb_run = wandb.init(project="offline-rl", group=FLAGS.logs_tag, id=FLAGS.wandb_id, resume=True,
                         reinit=True) if FLAGS.wandb else None
 
     checkpoint_dir = wandb.run.summary['checkpoint_dir']
     group = wandb.run.summary['group']
 
+    logging.info("Downloading model artifact from: " + WANDB_PROJECT_PATH, group)
     artifact = wb_run.use_artifact(WANDB_PROJECT_PATH.format(group), type='model')
-    artifact.download(root=checkpoint_dir)
+    download_dir = artifact.download(root=checkpoint_dir)
     FLAGS.acme_id = checkpoint_dir.split('/')[-2]
+    logging.info("Model checkpoint downloaded to: {}", download_dir)
   else:
     wb_run = wandb.init(project="offline-rl",
                         group=FLAGS.logs_tag,
