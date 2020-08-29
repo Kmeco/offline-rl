@@ -37,7 +37,7 @@ flags.DEFINE_integer('batch_size', 64, 'Batch size.')
 flags.DEFINE_float('epsilon', 0.05, 'Epsilon for the epsilon greedy in the env.')
 flags.DEFINE_float('learning_rate', 1e-4, 'Learning rate.')
 flags.DEFINE_float('discount', 0.99, 'Discount factor.')
-flags.DEFINE_integer('n_steps', 1, 'Bootstrap after n steps.')
+flags.DEFINE_integer('n_step_returns', 1, 'Bootstrap after n steps.')
 
 # specific config
 flags.DEFINE_float('cql_alpha', 1.0, 'Scaling parameter for the offline loss regularizer.')
@@ -77,7 +77,10 @@ def main(_):
     raw_dataset = load_tf_dataset(directory=FLAGS.dataset_dir)
     empirical_policy = compute_empirical_policy(raw_dataset)
 
-    dataset = preprocess_dataset(raw_dataset, FLAGS.batch_size, FLAGS.n_steps, FLAGS.discount)
+    dataset = preprocess_dataset(raw_dataset,
+                                 FLAGS.batch_size,
+                                 FLAGS.n_step_returns,
+                                 FLAGS.discount)
 
     # Create the main critic network
     critic_network = snt.Sequential([

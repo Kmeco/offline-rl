@@ -25,7 +25,7 @@ flags.DEFINE_string('logs_tag', 'tag', 'Tag a specific run for logging in TB.')
 flags.DEFINE_boolean('wandb', True, 'Whether to log results to wandb.')
 flags.DEFINE_float('epsilon', 0.3, 'Epsilon for e-greedy actor policy.')
 flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
-flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calculating TD(n)')
+flags.DEFINE_integer('n_step_returns', 1, 'Number of steps to bootstrap on when calculating TD(n)')
 flags.DEFINE_integer('batch_size', 256, 'Batch size for the learner.')
 flags.DEFINE_integer('ep_max_len', 500, 'Maximum length of an episode.')
 FLAGS = flags.FLAGS
@@ -53,7 +53,7 @@ def main(_):
       environment_spec=environment_spec,
       network=network,
       batch_size=FLAGS.batch_size,
-      n_step=FLAGS.n_steps,
+      n_step=FLAGS.n_step_returns,
       epsilon=FLAGS.epsilon,
       logger=disp
   )

@@ -27,7 +27,7 @@ flags.DEFINE_integer('max_replay_size', 10000, 'Maximum number of trajectories k
 flags.DEFINE_integer('samples_per_insert', 32, 'How many updates to do for each env step.')
 flags.DEFINE_float('cql_alpha', 1e-3, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_integer('n_episodes', 1000, 'Number of episodes to train for.')
-flags.DEFINE_integer('n_steps', 1, 'Number of steps to bootstrap on when calculating TD(n)')
+flags.DEFINE_integer('n_step_returns', 1, 'Number of steps to bootstrap on when calculating TD(n)')
 flags.DEFINE_boolean('wandb', True, 'Whether to log results to wandb.')
 flags.DEFINE_string('wandb_id', '', 'Specific wandb id if you wish to continue in a checkpoint.')
 flags.DEFINE_integer('batch_size', 256, 'Batch size for the learner.')
@@ -60,7 +60,7 @@ def main(_):
   wb_run = init_or_resume()
 
   # Create an environment and grab the spec.
-  environment, environment_spec = _build_environment(FLAGS.environment_name, max_steps = FLAGS.ep_max_len)
+  environment, environment_spec = _build_environment(FLAGS.environment_name, max_steps=FLAGS.ep_max_len)
 
   network = snt.Sequential([
       snt.Flatten(),
@@ -75,7 +75,7 @@ def main(_):
   agent = CQL(
       environment_spec=environment_spec,
       network=network,
-      n_step=FLAGS.n_steps,
+      n_step=FLAGS.n_step_returns,
       epsilon=FLAGS.epsilon,
       discount=FLAGS.discount,
       cql_alpha=FLAGS.cql_alpha,
