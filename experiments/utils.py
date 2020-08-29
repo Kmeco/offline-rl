@@ -1,5 +1,6 @@
 import operator
 import os
+import random
 import time
 import wandb
 
@@ -146,13 +147,19 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
 
 
 class DemonstrationRecorder:
-  def __init__(self, env, agent):
+  def __init__(self, env, agent, subsample=0):
+    """
+    Recorder that uses an agent to collect demonstrations
+    by interacting with the given environment.
+    :param subsample: percentage of zero reward trajectories to keep
+    """
     self._episodes = []
     self._ep_buffer = []
     self.env = env
     self._env_spec = specs.make_environment_spec(env)
     self.agent = agent
     self._prev_observation = None
+    self._subsample = subsample
 
   def collect_episode(self):
     """ collects tuples:
@@ -171,8 +178,10 @@ class DemonstrationRecorder:
       self._prev_observation = timestep.observation
 
     self._record_step(timestep, np.zeros_like(action))
-
-    self._episodes.append(_nested_stack(self._ep_buffer))
+    if not self._subsample or timestep.reward:
+      self._episodes.append(_nested_stack(self._ep_buffer))
+    elif random.random() < self._subsample:
+      self._episodes.append(_nested_stack(self._ep_buffer))
 
   def collect_n_episodes(self, n):
     for _ in tqdm(range(n)):
