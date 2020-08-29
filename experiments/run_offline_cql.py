@@ -2,8 +2,8 @@
 #python3
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import time
 from absl import app, flags, logging
-from absl import flags
 from tqdm import tqdm
 
 from acme.agents.tf import actors
@@ -17,7 +17,7 @@ import trfl
 import tensorflow as tf
 import sonnet as snt
 from utils import load_tf_dataset, _build_environment, _build_custom_loggers, \
-    preprocess_dataset, compute_empirical_policy, init_or_resume
+    preprocess_dataset, compute_empirical_policy
 from visualization import evaluate_q, visualize_policy
 
 from acme.tf import utils as tf2_utils
