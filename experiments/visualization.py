@@ -163,9 +163,9 @@ def plot_state_coverage(trajectories, shape):
     a.set_title(title.format(len(dir_count)))
 
   _plot_figure(-1, 'COMB-{}', (1, 1))
-  _plot_figure(0, 'UP-{}', (0, 1))
-  _plot_figure(1, 'LEFT-{}', (1, 0))
-  _plot_figure(2, 'RIGHT-{}', (1, 2))
-  _plot_figure(3, 'DOWN-{}', (2, 1))
+  _plot_figure(0, 'RIGHT-{}', (1, 2))
+  _plot_figure(1, 'DOWN-{}', (2, 1))
+  _plot_figure(2, 'LEFT-{}', (1, 0))
+  _plot_figure(3, 'UP-{}', (0, 1))
 
   plt.show()
