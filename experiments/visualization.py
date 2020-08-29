@@ -1,4 +1,8 @@
+import base64
 import copy
+
+import IPython
+import imageio
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -119,3 +123,21 @@ def visualize_policy(action_values, env):
     plt.subplot(4, 5, 5 * row + 5)
     plot_greedy_policy(q[row], env, row)
   return plt
+
+
+def render(env):
+  return env.environment.render(mode='rgb_array')
+
+
+def display_video(frames, filename='temp.mp4'):
+  """Save and display video."""
+  # Write video
+  with imageio.get_writer(filename, fps=60) as video:
+    for frame in frames:
+      video.append_data(frame)
+  # Read video and display the video
+  video = open(filename, 'rb').read()
+  b64_video = base64.b64encode(video)
+  video_tag = ('<video  width="320" height="240" controls alt="test" '
+               'src="data:video/mp4;base64,{0}">').format(b64_video.decode())
+  return IPython.display.HTML(video_tag)

@@ -48,7 +48,8 @@ def _build_environment(name, n_actions=3, max_steps=500):
   env = ImgFlatObsWrapper(FullyObsWrapper(raw_env))
   env = gym_wrapper.GymWrapper(env)
   env = CustomSinglePrecisionWrapper(env)
-  return env
+  spec = specs.make_environment_spec(env)
+  return env, spec
 
 
 class WBLogger(base.Logger):
@@ -263,7 +264,7 @@ def load_tf_dataset(directory='datasets'):
   return tf.data.Dataset.zip(tuple(parts))
 
 
-def preprocess_dataset(dataset, batch_size, n_step_returns, discount):
+def preprocess_dataset(dataset: tf.data.Dataset, batch_size: int, n_step_returns: int, discount: float):
   dataset = dataset.map(lambda *x:
                                n_step_transition_from_episode(*x, n_step=n_step_returns,
                                                               additional_discount=discount))
@@ -272,7 +273,7 @@ def preprocess_dataset(dataset, batch_size, n_step_returns, discount):
   return dataset
 
 
-def load_wb_model(model_name, model_tag):
+def load_wb_model(model_name: str, model_tag: str):
   wb_run = wandb.init()
   wb_path = WANDB_PROJECT_PATH.format(model_name, model_tag)
   logging.info("Downloading model artifact from: " + wb_path)

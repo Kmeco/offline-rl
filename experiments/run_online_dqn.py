@@ -39,15 +39,14 @@ def main(_):
                       reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
 
   # Create an environment and grab the spec.
-  environment = _build_environment(FLAGS.environment_name, max_steps=FLAGS.ep_max_len)
-  environment_spec = specs.make_environment_spec(environment)
+  environment, environment_spec = _build_environment(FLAGS.environment_name, max_steps=FLAGS.ep_max_len)
 
   network = snt.Sequential([
       snt.Flatten(),
       snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values])
   ])
 
-  disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
+  disp, disp_loop = _build_custom_loggers(wb_run)
 
   # Construct the agent.
   agent = dqn.DQN(

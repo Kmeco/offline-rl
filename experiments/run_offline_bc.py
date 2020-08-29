@@ -62,8 +62,7 @@ def main(_):
             tf.random.set_seed(FLAGS.seed + n)
 
         # Create an environment and grab the spec.
-        environment = _build_environment(FLAGS.environment_name)
-        environment_spec = specs.make_environment_spec(environment)
+        environment, environment_spec = _build_environment(FLAGS.environment_name)
 
         # Load demonstration dataset.
         dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)

@@ -24,8 +24,8 @@ FLAGS = flags.FLAGS
 
 def main(_):
     # Create an environment and create the spec.
-    environment = _build_environment(FLAGS.environment_name, max_steps=FLAGS.max_steps_per_episode)
-    environment_spec = specs.make_environment_spec(environment)
+    environment, environment_spec = _build_environment(FLAGS.environment_name,
+                                                       max_steps=FLAGS.max_steps_per_episode)
 
     if FLAGS.model_name:
         loaded_network = load_wb_model(FLAGS.model_name, FLAGS.model_tag)

@@ -60,8 +60,7 @@ def main(_):
   wb_run = init_or_resume()
 
   # Create an environment and grab the spec.
-  environment = _build_environment(FLAGS.environment_name, max_steps = FLAGS.ep_max_len)
-  environment_spec = specs.make_environment_spec(environment)
+  environment, environment_spec = _build_environment(FLAGS.environment_name, max_steps = FLAGS.ep_max_len)
 
   network = snt.Sequential([
       snt.Flatten(),
