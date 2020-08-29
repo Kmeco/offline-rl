@@ -30,9 +30,13 @@ flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env n
 flags.DEFINE_string('logs_dir', 'logs-CQL-0', 'TB logs directory')
 flags.DEFINE_string('logs_tag', 'tag', 'Tag a specific run for logging in TB.')
 flags.DEFINE_boolean('wandb', False, 'Whether to log results to wandb.')
+flags.DEFINE_string('wandb_id', '', 'Specific wandb id if you wish to continue in a checkpoint.')
+
 flags.DEFINE_string('dataset_dir', 'datasets', 'Directory containing an offline dataset.')
 flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
 flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
+flags.DEFINE_integer('max_eval_episode_len', 100, 'Evaluation episodes.')
+
 flags.DEFINE_integer('epochs', 100, 'Number of epochs to run (samples only 1 transition per episode in each epoch).')
 flags.DEFINE_integer('seed', 1234, 'Random seed for replicable results. Set to 0 for no seed.')
 flags.DEFINE_integer('n_random_runs', 1, 'Run n runs with different random seeds and track them under one wb group.')

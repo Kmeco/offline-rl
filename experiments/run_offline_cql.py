@@ -27,11 +27,14 @@ from cql.learning import CQLLearner
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
 flags.DEFINE_string('logs_tag', 'tag', 'Tag a specific run for logging in TB.')
 flags.DEFINE_boolean('wandb', True, 'Whether to log results to wandb.')
+flags.DEFINE_string('wandb_id', '', 'Specific wandb id if you wish to continue in a checkpoint.')
 flags.DEFINE_string('dataset_dir', 'datasets', 'Directory containing an offline dataset.')
 flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
 flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
+flags.DEFINE_integer('max_eval_episode_len', 100, 'Evaluation episodes.')
 flags.DEFINE_integer('epochs', 100, 'Number of epochs to run (samples only 1 transition per episode in each epoch).')
 flags.DEFINE_integer('seed', 1234, 'Random seed for replicable results. Set to 0 for no seed.')
+
 # general learner config
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
 flags.DEFINE_float('epsilon', 0.05, 'Epsilon for the epsilon greedy in the env.')
@@ -65,13 +68,15 @@ def init_or_resume():
         logging.info("Model checkpoint downloaded to: {}".format(download_dir))
     return wb_run
 
+
 def main(_):
-    wb_run = init_or_resume(FLAGS)
+    wb_run = init_or_resume()
 
     if FLAGS.seed:
         tf.random.set_seed(FLAGS.seed)
     # Create an environment and grab the spec.
-    environment, environment_spec = _build_environment(FLAGS.environment_name)
+    environment, env_spec = _build_environment(FLAGS.environment_name,
+                                               max_steps=FLAGS.max_eval_episode_len)
 
     # Load demonstration dataset.
     raw_dataset = load_tf_dataset(directory=FLAGS.dataset_dir)
@@ -85,7 +90,7 @@ def main(_):
     # Create the main critic network
     critic_network = snt.Sequential([
       snt.Flatten(),
-      snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values])
+      snt.nets.MLP([128, 64, 32, env_spec.actions.num_values])
     ])
 
     policy_network = snt.Sequential([
@@ -93,7 +98,7 @@ def main(_):
         lambda q: trfl.epsilon_greedy(q, epsilon=FLAGS.epsilon).sample(),
     ])
 
-    tf2_utils.create_variables(critic_network, [environment_spec.observations])
+    tf2_utils.create_variables(critic_network, [env_spec.observations])
 
     # Create the actor which defines how we take actions.
     evaluation_actor = actors.FeedForwardActor(policy_network)
