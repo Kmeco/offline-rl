@@ -141,3 +141,31 @@ def display_video(frames, filename='temp.mp4'):
   video_tag = ('<video  width="320" height="240" controls alt="test" '
                'src="data:video/mp4;base64,{0}">').format(b64_video.decode())
   return IPython.display.HTML(video_tag)
+
+
+def plot_state_coverage(transitions, shape):
+  trajectories = np.array(transitions).reshape(-1, *shape)
+
+  fig, axs = plt.subplots(3, 3, figsize=(15, 10))
+  # turn all axis off
+  [axi.set_axis_off() for axi in axs.ravel()]
+
+  def _plot_figure(dir, title, pos):
+    if dir >= 0:
+      dir_count = trajectories[np.sum((trajectories[:, 2] + trajectories[:, 0]) == 10 + dir, axis=(1, 2)).astype(bool)]
+    else:
+      dir_count = dir
+
+    img = np.sum(np.array(dir_count)[:, 0] == 10, axis=0)
+    a = axs[pos]
+    im = a.imshow(img)
+    fig.colorbar(im, ax=a)
+    a.set_title(title.format(len(dir_count)))
+
+  _plot_figure(-1, 'COMB-{}', (1, 1))
+  _plot_figure(0, 'UP-{}', (0, 1))
+  _plot_figure(1, 'LEFT-{}', (1, 0))
+  _plot_figure(2, 'RIGHT-{}', (1, 2))
+  _plot_figure(3, 'DOWN-{}', (2, 1))
+
+  plt.show()
