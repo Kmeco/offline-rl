@@ -180,12 +180,18 @@ class DemonstrationRecorder:
     self._record_step(timestep, np.zeros_like(action))
     if not self._subsample or timestep.reward:
       self._episodes.append(_nested_stack(self._ep_buffer))
+      return True
     elif random.random() < self._subsample:
       self._episodes.append(_nested_stack(self._ep_buffer))
+      return True
+    else:
+      return False
 
   def collect_n_episodes(self, n):
     for _ in tqdm(range(n)):
-      self.collect_episode()
+      found = False
+      while not found:
+        found = self.collect_episode()
 
   def _record_step(self, timestep, action):
     reward = np.array(timestep.reward or 0, np.float32)

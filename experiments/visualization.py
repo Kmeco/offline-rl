@@ -6,7 +6,7 @@ import imageio
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-
+from tqdm import tqdm
 
 def _get_full_observation(state, base_obs):
   """"Given a 3dim compressed tuple state of the env,
@@ -143,29 +143,60 @@ def display_video(frames, filename='temp.mp4'):
   return IPython.display.HTML(video_tag)
 
 
-def plot_state_coverage(trajectories, shape):
-  trajectories = np.array(trajectories).reshape(-1, *shape)
+def plot_dataset_characteristics(dataset, shape, filter_negative):
+  "Don't try to understand this func, it's plotting custom metrics."
+  transitions = []
+  rewards = []
+  tr_lens = []
+  action_counts = []
+
+  dataset_len = sum([1 for _ in dataset])
+  for i in tqdm(dataset, total=dataset_len):
+    rewards.append(sum(i[2][:-1]).numpy())
+    tr_lens.append(len(i[2]))
+    action_counts.append([list(i[1]).count(0), list(i[1]).count(1), list(i[1]).count(2)])
+    if not filter_negative or i[2][-1] > 0:
+      for observation in i[0]:
+        transitions.append(observation.numpy())
+
+  transitions = np.array(transitions).reshape(-1, *shape)
+  rewards = np.array(rewards)
+  action_counts = np.array(action_counts)
 
   fig, axs = plt.subplots(3, 3, figsize=(15, 10))
-  # turn all axis off
-  [axi.set_axis_off() for axi in axs.ravel()]
 
   def _plot_figure(dir, title, pos):
     if dir >= 0:
-      dir_count = trajectories[np.sum((trajectories[:, 2] + trajectories[:, 0]) == 10 + dir, axis=(1, 2)).astype(bool)]
+      # this is magic: count_num states where agent faces dir
+      dir_count = transitions[np.sum((transitions[:, 2] + transitions[:, 0]) == 10 + dir, axis=(1, 2)).astype(bool)]
     else:
-      dir_count = trajectories
+      dir_count = transitions
 
     img = np.sum(np.array(dir_count)[:, 0] == 10, axis=0)
     a = axs[pos]
     im = a.imshow(img)
+    a.set_axis_off()
     fig.colorbar(im, ax=a)
     a.set_title(title.format(len(dir_count)))
 
-  _plot_figure(-1, 'COMB-{}', (1, 1))
+  _plot_figure(-1, 'COMBINED-{}', (1, 1))
   _plot_figure(0, 'RIGHT-{}', (1, 2))
   _plot_figure(1, 'DOWN-{}', (2, 1))
   _plot_figure(2, 'LEFT-{}', (1, 0))
   _plot_figure(3, 'UP-{}', (0, 1))
+
+  a = axs[0, 0]
+  a.hist(rewards)
+  a.set_title('Reward distribution.')
+  a = axs[0, 2]
+  non_zero = rewards[rewards != 0]
+  a.hist(non_zero)
+  a.set_title(f'Non zero r dist:{round(100* len(non_zero)/len(rewards), 2)}%')
+  a = axs[2, 0]
+  a.hist(tr_lens)
+  a.set_title('Len of trajectories.')
+  a = axs[2, 2]
+  a.bar(['left', 'right', 'forward'], np.sum(action_counts, axis=0) / np.sum(action_counts))
+  a.set_title('Action counts.')
 
   plt.show()
