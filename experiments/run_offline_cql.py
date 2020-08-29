@@ -2,7 +2,7 @@
 #python3
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-from absl import app
+from absl import app, flags, logging
 from absl import flags
 from tqdm import tqdm
 
@@ -11,6 +11,7 @@ from acme.agents.tf import actors
 from acme import EnvironmentLoop
 from acme.utils import counting
 from acme import specs
+import wandb
 
 import trfl
 import tensorflow as tf
@@ -43,6 +44,26 @@ flags.DEFINE_float('cql_alpha', 1.0, 'Scaling parameter for the offline loss reg
 flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
 FLAGS = flags.FLAGS
 
+WANDB_PROJECT_PATH = 'kmeco/offline-rl/{}:latest'
+
+
+def init_or_resume():
+    wb_run = wandb.init(project="offline-rl",
+                        group=FLAGS.logs_tag,
+                        id=FLAGS.wandb_id or str(int(time.time())),
+                        config=FLAGS.flag_values_dict(),
+                        resume=FLAGS.wandb_id is not None,
+                        reinit=True) if FLAGS.wandb else None
+    if FLAGS.wandb_id:
+        checkpoint_dir = wandb.run.summary['checkpoint_dir']
+        group = wandb.run.summary['group']
+
+        logging.info("Downloading model artifact from: " + WANDB_PROJECT_PATH.format(group))
+        artifact = wb_run.use_artifact(WANDB_PROJECT_PATH.format(group), type='model')
+        download_dir = artifact.download(root=checkpoint_dir)
+        FLAGS.acme_id = checkpoint_dir.split('/')[-2]
+        logging.info("Model checkpoint downloaded to: {}".format(download_dir))
+    return wb_run
 
 def main(_):
     wb_run = init_or_resume(FLAGS)
