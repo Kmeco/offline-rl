@@ -143,8 +143,8 @@ def display_video(frames, filename='temp.mp4'):
   return IPython.display.HTML(video_tag)
 
 
-def plot_state_coverage(transitions, shape):
-  trajectories = np.array(transitions).reshape(-1, *shape)
+def plot_state_coverage(trajectories, shape):
+  trajectories = np.array(trajectories).reshape(-1, *shape)
 
   fig, axs = plt.subplots(3, 3, figsize=(15, 10))
   # turn all axis off
@@ -154,7 +154,7 @@ def plot_state_coverage(transitions, shape):
     if dir >= 0:
       dir_count = trajectories[np.sum((trajectories[:, 2] + trajectories[:, 0]) == 10 + dir, axis=(1, 2)).astype(bool)]
     else:
-      dir_count = dir
+      dir_count = trajectories
 
     img = np.sum(np.array(dir_count)[:, 0] == 10, axis=0)
     a = axs[pos]
