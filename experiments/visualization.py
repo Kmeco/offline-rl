@@ -143,7 +143,7 @@ def display_video(frames, filename='temp.mp4'):
   return IPython.display.HTML(video_tag)
 
 
-def plot_dataset_characteristics(dataset, shape, filter_negative):
+def plot_dataset_characteristics(dataset, shape, filter_negative=False):
   "Don't try to understand this func, it's plotting custom metrics."
   transitions = []
   rewards = []
@@ -187,14 +187,14 @@ def plot_dataset_characteristics(dataset, shape, filter_negative):
 
   a = axs[0, 0]
   a.hist(rewards)
-  a.set_title('Reward distribution.')
+  a.set_title(f'Reward dist. Mean:{round(np.mean(rewards), 2)}')
   a = axs[0, 2]
   non_zero = rewards[rewards != 0]
   a.hist(non_zero)
   a.set_title(f'Non zero r dist:{round(100* len(non_zero)/len(rewards), 2)}%')
   a = axs[2, 0]
   a.hist(tr_lens)
-  a.set_title('Len of trajectories.')
+  a.set_title(f'Len of trajectories. Mean:{round(np.mean(tr_lens), 2)}')
   a = axs[2, 2]
   a.bar(['left', 'right', 'forward'], np.sum(action_counts, axis=0) / np.sum(action_counts))
   a.set_title('Action counts.')

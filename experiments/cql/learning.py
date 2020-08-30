@@ -156,7 +156,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       cql_loss = tf.reduce_mean(cql_loss, axis=0)
 
     # Do a step of SGD.
-    gradients = tape.gradient(loss, self._network.trainable_variables)
+    gradients = tape.gradient(cql_loss, self._network.trainable_variables)
     self._optimizer.apply(gradients, self._network.trainable_variables)
 
     # Update the priorities in the replay buffer.
