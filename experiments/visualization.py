@@ -23,6 +23,7 @@ def _get_base_observation(environment):
   true_shape = _get_true_env_shape(environment)
   obs_base = obs.reshape(*true_shape)
   obs_base[0][obs_base[0] == 10] = 1.
+  obs_base[2][obs_base[2] != 0] = 0.
   return obs_base, true_shape
 
 

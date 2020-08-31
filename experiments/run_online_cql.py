@@ -14,6 +14,7 @@ from acme import EnvironmentLoop
 import sonnet as snt
 
 from utils import _build_environment, _build_custom_loggers
+from visualization import evaluate_q, visualize_policy
 
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
 flags.DEFINE_string('results_dir', '/tmp/bsuite', 'CSV results directory.')
@@ -88,6 +89,9 @@ def main(_):
   # Run the environment loop.
   loop = EnvironmentLoop(environment, agent, counter=counter, logger=disp_loop)
   loop.run(num_episodes=FLAGS.n_episodes)  # pytype: disable=attribute-error
+  Q = evaluate_q(agent._learner._network, environment)
+  plot = visualize_policy(Q, environment)
+  wb_run.log({'chart': plot})
   agent.save(tag=FLAGS.logs_tag)
 
 
