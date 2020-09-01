@@ -45,6 +45,7 @@ flags.DEFINE_integer('n_step_returns', 1, 'Bootstrap after n steps.')
 # specific config
 flags.DEFINE_float('cql_alpha', 1.0, 'Scaling parameter for the offline loss regularizer.')
 flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
+flags.DEFINE_float('translate_lse', 1., 'Coefficient by which LogSumExp is scaled to make estimate more accurate.')
 FLAGS = flags.FLAGS
 
 WANDB_PROJECT_PATH = 'kmeco/offline-rl/{}:latest'
@@ -120,6 +121,7 @@ def main(_):
         importance_sampling_exponent=0.2,
         learning_rate=FLAGS.learning_rate,
         cql_alpha=FLAGS.cql_alpha,
+        translate_lse=FLAGS.translate_lse,
         target_update_period=100,
         empirical_policy=empirical_policy,
         logger=disp,

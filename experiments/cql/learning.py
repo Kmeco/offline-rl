@@ -52,6 +52,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       dataset: tf.data.Dataset,
       huber_loss_parameter: float = 1.,
       empirical_policy: dict = None,
+      translate_lse: float = 1.,
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
@@ -83,6 +84,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
     self._target_network = copy.deepcopy(network)
     self._optimizer = snt.optimizers.Adam(learning_rate)
     self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
+    self._tr = tf.constant(translate_lse, dtype=tf.float32)
     self._emp_policy = empirical_policy
     self._replay_client = replay_client
 
@@ -146,7 +148,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       if self._alpha:
         policy_probs = self._emp_policy.lookup([str(o) for o in o_tm1])
 
-        push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
+        push_down = tf.reduce_logsumexp(q_tm1 * self._tr, axis=1) / self._tr        # soft-maximum of the q func
         push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
 
         cql_loss = loss + self._alpha * (push_down - push_up)
