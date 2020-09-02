@@ -4,19 +4,16 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import trfl
-from absl import app
-from absl import flags
+from absl import app, flags, logging
 from tqdm import tqdm
 
 from acme.agents.tf import actors
 
 from acme.environment_loop import EnvironmentLoop
 from acme.utils import counting
-from acme import specs
 
 import tensorflow as tf
 import sonnet as snt
-import tensorflow_probability as tfp
 from utils import load_tf_dataset, _build_environment, _build_custom_loggers, \
   preprocess_dataset
 
@@ -53,67 +50,83 @@ flags.DEFINE_float('cql_alpha', 0.0, 'Scaling parameter for the offline loss reg
 flags.DEFINE_string('policy_improvement_mode', 'binary', 'Defines how the advantage is processed.')
 FLAGS = flags.FLAGS
 
+WANDB_PROJECT_PATH = 'kmeco/offline-rl/{}:latest'
+
+
+def init_or_resume():
+  wb_run = wandb.init(project="offline-rl",
+                      group=FLAGS.logs_tag,
+                      id=FLAGS.wandb_id or str(int(time.time())),
+                      config=FLAGS.flag_values_dict(),
+                      resume=FLAGS.wandb_id is not None,
+                      reinit=True) if FLAGS.wandb else None
+  if FLAGS.wandb_id:
+    checkpoint_dir = wandb.run.summary['checkpoint_dir']
+    group = wandb.run.summary['group']
+
+    logging.info("Downloading model artifact from: " + WANDB_PROJECT_PATH.format(group))
+    artifact = wb_run.use_artifact(WANDB_PROJECT_PATH.format(group), type='model')
+    download_dir = artifact.download(root=checkpoint_dir)
+    FLAGS.acme_id = checkpoint_dir.split('/')[-2]
+    logging.info("Model checkpoint downloaded to: {}".format(download_dir))
+  return wb_run
+
 
 def main(_):
-    for n in range(FLAGS.n_random_runs):
-        wb_run = wandb.init(project="offline-rl",
-                            group=FLAGS.logs_tag,
-                            id=str(int(time.time())),
-                            config=FLAGS.flag_values_dict(),
-                            reinit=FLAGS.acme_id is None) if FLAGS.wandb else None
+  wb_run = init_or_resume()
 
-        if FLAGS.seed:
-            tf.random.set_seed(FLAGS.seed + n)
+  if FLAGS.seed:
+    tf.random.set_seed(FLAGS.seed)
 
-        # Create an environment and grab the spec.
-        environment, environment_spec = _build_environment(FLAGS.environment_name)
+  # Create an environment and grab the spec.
+  environment, environment_spec = _build_environment(FLAGS.environment_name)
 
-        # Load demonstration dataset.
-        dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
-        dataset = preprocess_dataset(dataset, FLAGS.batch_size, FLAGS.n_step_returns, FLAGS.discount)
+  # Load demonstration dataset.
+  dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
+  dataset = preprocess_dataset(dataset, FLAGS.batch_size, FLAGS.n_step_returns, FLAGS.discount)
 
-        # Create the policy and critic networks.
-        policy_network = snt.Sequential([
-          snt.Flatten(),
-          snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
-        ])
+  # Create the policy and critic networks.
+  policy_network = snt.Sequential([
+    snt.Flatten(),
+    snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
+  ])
 
-        # Ensure that we create the variables before proceeding (maybe not needed).
-        tf2_utils.create_variables(policy_network, [environment_spec.observations])
+  # Ensure that we create the variables before proceeding (maybe not needed).
+  tf2_utils.create_variables(policy_network, [environment_spec.observations])
 
-        # If the agent is non-autoregressive use epsilon=0 which will be a greedy
-        # policy.
-        evaluator_network = snt.Sequential([
-          policy_network,
-          lambda q: trfl.epsilon_greedy(q, epsilon=FLAGS.epsilon).sample(),
-        ])
+  # If the agent is non-autoregressive use epsilon=0 which will be a greedy
+  # policy.
+  evaluator_network = snt.Sequential([
+    policy_network,
+    lambda q: trfl.epsilon_greedy(q, epsilon=FLAGS.epsilon).sample(),
+  ])
 
-        # Create the actor which defines how we take actions.
-        evaluation_actor = actors.FeedForwardActor(evaluator_network)
+  # Create the actor which defines how we take actions.
+  evaluation_actor = actors.FeedForwardActor(evaluator_network)
 
-        counter = counting.Counter()
-        learner_counter = counting.Counter(counter)
+  counter = counting.Counter()
+  learner_counter = counting.Counter(counter)
 
-        disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
+  disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
 
-        eval_loop = EnvironmentLoop(
-            environment=environment,
-            actor=evaluation_actor,
-            counter=counter,
-            logger=disp_loop)
+  eval_loop = EnvironmentLoop(
+      environment=environment,
+      actor=evaluation_actor,
+      counter=counter,
+      logger=disp_loop)
 
-        # The learner updates the parameters (and initializes them).
-        learner = learning.BCLearner(
-          network=policy_network,
-          learning_rate=FLAGS.learning_rate,
-          dataset=dataset,
-          counter=learner_counter)
+  # The learner updates the parameters (and initializes them).
+  learner = learning.BCLearner(
+    network=policy_network,
+    learning_rate=FLAGS.learning_rate,
+    dataset=dataset,
+    counter=learner_counter)
 
-        # Run the environment loop.
-        for _ in tqdm(range(FLAGS.epochs)):
-            for _ in range(FLAGS.evaluate_every):
-                learner.step()
-            eval_loop.run(FLAGS.evaluation_episodes)
+  # Run the environment loop.
+  for _ in tqdm(range(FLAGS.epochs)):
+      for _ in range(FLAGS.evaluate_every):
+          learner.step()
+      eval_loop.run(FLAGS.evaluation_episodes)
 
 
 if __name__ == '__main__':
