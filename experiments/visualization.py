@@ -152,8 +152,8 @@ def plot_dataset_characteristics(dataset, shape, filter_negative=False):
   action_counts = []
 
   dataset_len = sum([1 for _ in dataset])
-  for i in tqdm(dataset, total=dataset_len):
-    rewards.append(sum(i[2][:-1]).numpy())
+  for i in tqdm(dataset, total=dataset_len): # i is a (s, a, r, d) tuple of arrays
+    rewards.append(sum(i[2][:-1]).numpy())  # ignore the last reward due to how the transition recorder works
     tr_lens.append(len(i[2]))
     action_counts.append([list(i[1]).count(0), list(i[1]).count(1), list(i[1]).count(2)])
     if not filter_negative or i[2][-1] > 0:
@@ -188,7 +188,7 @@ def plot_dataset_characteristics(dataset, shape, filter_negative=False):
 
   a = axs[0, 0]
   a.hist(rewards)
-  a.set_title(f'Reward dist. Mean:{round(np.mean(rewards), 2)}')
+  a.set_title(f'Reward dist. Mean:{round(float(np.mean(rewards)), 2)}')
   a = axs[0, 2]
   non_zero = rewards[rewards != 0]
   a.hist(non_zero)
