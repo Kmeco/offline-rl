@@ -50,6 +50,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       ratio_upper_bound: float = 20.,
       beta: float = 1.0,
       cql_alpha: float = 0.0,
+      translate_lse: float = 100.,
       empirical_policy: dict = None,
       counter: Optional[counting.Counter] = None,
       logger: Optional[loggers.Logger] = None,
@@ -99,6 +100,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     self._ratio_upper_bound = ratio_upper_bound
     # cql specific
     self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
+    self._tr = tf.constant(translate_lse, dtype=tf.float32)
     if cql_alpha:
       assert empirical_policy is not None, 'Empirical behavioural policy must be specified with non-zero cql_alpha.'
     self._emp_policy = empirical_policy
@@ -186,7 +188,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       if self._alpha:
         policy_probs = self._emp_policy.lookup([str(o) for o in o_tm1])
 
-        push_down = tf.reduce_logsumexp(q_tm1, axis=1)          # soft-maximum of the q func
+        push_down = tf.reduce_logsumexp(q_tm1 * self._tr, axis=1) / self._tr  # soft-maximum of the q func
         push_up = tf.reduce_sum(policy_probs * q_tm1, axis=1)   # expected q value under behavioural policy
 
         critic_loss = critic_loss + self._alpha * (push_down - push_up)
