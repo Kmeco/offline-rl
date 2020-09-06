@@ -15,10 +15,10 @@ from acme.utils import counting
 import tensorflow as tf
 import sonnet as snt
 from utils import load_tf_dataset, _build_environment, _build_custom_loggers, \
-  preprocess_dataset
+  preprocess_dataset, compute_empirical_policy
 
 from acme.tf import utils as tf2_utils
-from acme.agents.tf.bc import learning
+from bc.learning import BCLearner
 import wandb
 
 
@@ -82,8 +82,13 @@ def main(_):
   environment, environment_spec = _build_environment(FLAGS.environment_name)
 
   # Load demonstration dataset.
-  dataset, empirical_policy = load_tf_dataset(directory=FLAGS.dataset_dir)
-  dataset = preprocess_dataset(dataset, FLAGS.batch_size, FLAGS.n_step_returns, FLAGS.discount)
+  raw_dataset = load_tf_dataset(directory=FLAGS.dataset_dir)
+  empirical_policy = compute_empirical_policy(raw_dataset)
+
+  dataset = preprocess_dataset(raw_dataset,
+                               FLAGS.batch_size,
+                               FLAGS.n_step_returns,
+                               FLAGS.discount)
 
   # Create the policy and critic networks.
   policy_network = snt.Sequential([
@@ -105,9 +110,8 @@ def main(_):
   evaluation_actor = actors.FeedForwardActor(evaluator_network)
 
   counter = counting.Counter()
-  learner_counter = counting.Counter(counter)
 
-  disp, disp_loop = _build_custom_loggers(wb_run, FLAGS.logs_tag)
+  disp, disp_loop = _build_custom_loggers(wb_run)
 
   eval_loop = EnvironmentLoop(
       environment=environment,
@@ -116,17 +120,19 @@ def main(_):
       logger=disp_loop)
 
   # The learner updates the parameters (and initializes them).
-  learner = learning.BCLearner(
+  learner = BCLearner(
     network=policy_network,
     learning_rate=FLAGS.learning_rate,
     dataset=dataset,
-    counter=learner_counter)
+    counter=counter)
 
   # Run the environment loop.
   for _ in tqdm(range(FLAGS.epochs)):
       for _ in range(FLAGS.evaluate_every):
           learner.step()
       eval_loop.run(FLAGS.evaluation_episodes)
+
+  learner.save(tag=FLAGS.logs_tag)
 
 
 if __name__ == '__main__':
