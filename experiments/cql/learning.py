@@ -52,7 +52,7 @@ class CQLLearner(acme.Learner, tf2_savers.TFSaveable):
       dataset: tf.data.Dataset,
       huber_loss_parameter: float = 1.,
       empirical_policy: dict = None,
-      translate_lse: float = 1.,
+      translate_lse: float = 100.,
       replay_client: reverb.TFClient = None,
       counter: counting.Counter = None,
       logger: loggers.Logger = None,

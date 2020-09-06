@@ -85,9 +85,6 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
     self._target_critic_network = copy.deepcopy(critic_network)
     self._critic_optimizer = critic_optimizer
     self._policy_optimizer = policy_optimizer
-
-    # self._alpha = tf.constant(cql_alpha, dtype=tf.float32)
-    # self._emp_policy = empirical_policy
     self._target_update_period = target_update_period
 
     # Internalise the hyperparameters.
@@ -130,7 +127,7 @@ class CRRLearner(acme.Learner, tf2_savers.TFSaveable):
       'critic': critic_network,
     }
     self._snapshotter = tf2_savers.Snapshotter(
-      objects_to_save=objects_to_save, time_delta_minutes=10, directory=checkpoint_subpath)
+      objects_to_save=objects_to_save, time_delta_minutes=10)
     # Timestamp to keep track of the wall time.
     self._walltime_timestamp = time.time()
 

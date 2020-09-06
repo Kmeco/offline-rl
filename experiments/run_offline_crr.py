@@ -13,7 +13,6 @@ from acme.agents.tf import actors
 from acme.environment_loop import EnvironmentLoop
 from acme.utils import counting
 from acme.tf import utils as tf2_utils, networks
-from acme import specs
 
 import tensorflow as tf
 import sonnet as snt
@@ -115,7 +114,6 @@ def main(_):
     evaluation_actor = actors.FeedForwardActor(behaviour_network)
 
     counter = counting.Counter()
-    learner_counter = counting.Counter(counter)
 
     disp, disp_loop = _build_custom_loggers(wb_run)
 
@@ -135,7 +133,7 @@ def main(_):
         cql_alpha=FLAGS.cql_alpha,
         empirical_policy=empirical_policy,
         logger=disp,
-        counter=learner_counter
+        counter=counter
     )
 
     # Run the environment loop.
