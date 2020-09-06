@@ -188,7 +188,7 @@ def plot_dataset_characteristics(dataset, shape, filter_negative=False):
 
   a = axs[0, 0]
   a.hist(rewards)
-  a.set_title(f'Reward dist. Mean:{round(float(np.mean(rewards)), 2)}')
+  a.set_title(f'Reward dist. Mean:{round(float(np.mean(rewards)), 3)}')
   a = axs[0, 2]
   non_zero = rewards[rewards != 0]
   a.hist(non_zero)
