@@ -280,10 +280,11 @@ def load_tf_dataset(directory='datasets'):
 
 
 def preprocess_dataset(dataset: tf.data.Dataset, batch_size: int, n_step_returns: int, discount: float):
+  d_len = sum([1 for _ in dataset])
   dataset = dataset.map(lambda *x:
                                n_step_transition_from_episode(*x, n_step=n_step_returns,
                                                               additional_discount=discount))
-  dataset = dataset.repeat().batch(batch_size, drop_remainder=True)
+  dataset = dataset.repeat().shuffle(d_len).batch(batch_size, drop_remainder=True)
   dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
   return dataset
 

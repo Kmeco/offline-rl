@@ -40,7 +40,7 @@ flags.DEFINE_integer('seed', 1234, 'Random seed for replicable results. Set to 0
 
 # general learner config
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
-flags.DEFINE_float('greedy', False, 'Should act greedily or sample the policy during online evaluation.')
+flags.DEFINE_boolean('greedy', False, 'Should act greedily or sample the policy during online evaluation.')
 flags.DEFINE_float('learning_rate', 1e-4, 'Learning rate.')
 flags.DEFINE_float('discount', 0.99, 'Discount factor.')
 flags.DEFINE_integer('n_step_returns', 1, 'Bootstrap after n steps.')
