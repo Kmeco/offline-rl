@@ -12,11 +12,13 @@ from acme.agents.tf import actors
 
 from acme.environment_loop import EnvironmentLoop
 from acme.utils import counting
-from acme.tf import utils as tf2_utils, networks
+from acme.tf import utils as tf2_utils
+from acme.tf.networks import StochasticSamplingHead
 
 import tensorflow as tf
 import sonnet as snt
 import tensorflow_probability as tfp
+import networks
 from utils import load_tf_dataset, _build_environment, _build_custom_loggers, \
     preprocess_dataset, compute_empirical_policy
 from visualization import evaluate_q, visualize_policy
@@ -38,7 +40,7 @@ flags.DEFINE_integer('seed', 1234, 'Random seed for replicable results. Set to 0
 
 # general learner config
 flags.DEFINE_integer('batch_size', 64, 'Batch size.')
-flags.DEFINE_float('epsilon', 0.05, 'Epsilon for the epsilon greedy in the env.')
+flags.DEFINE_float('greedy', False, 'Should act greedily or sample the policy during online evaluation.')
 flags.DEFINE_float('learning_rate', 1e-4, 'Learning rate.')
 flags.DEFINE_float('discount', 0.99, 'Discount factor.')
 flags.DEFINE_integer('n_step_returns', 1, 'Bootstrap after n steps.')
@@ -91,19 +93,21 @@ def main(_):
                                  FLAGS.discount)
 
     # Create the policy and critic networks.
-    critic_network = snt.Sequential([
-      snt.Flatten(),
-      snt.nets.MLP([128, 64, 32, env_spec.actions.num_values]),
-    ])
+    critic_network = networks.get_default_critic(env_spec)
 
     policy_network = snt.Sequential([
       copy.deepcopy(critic_network),
       tfp.distributions.Categorical
     ])
 
+    if FLAGS.greedy:
+      head = networks.GreedyHead()
+    else:
+      head = StochasticSamplingHead()
+
     behaviour_network = snt.Sequential([
       policy_network,
-      networks.StochasticSamplingHead()
+      head
     ])
 
     # Ensure that we create the variables before proceeding (maybe not needed).

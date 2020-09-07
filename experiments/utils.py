@@ -288,14 +288,14 @@ def preprocess_dataset(dataset: tf.data.Dataset, batch_size: int, n_step_returns
   return dataset
 
 
-def load_wb_model(model_name: str, model_tag: str):
+def load_wb_model(model_name: str, model_tag: str, dir:str='network'):
   wb_run = wandb.init()
   wb_path = WANDB_PROJECT_PATH.format(model_name, model_tag)
   logging.info("Downloading model artifact from: " + wb_path)
   artifact = wb_run.use_artifact(wb_path, type='model')
   download_dir = artifact.download()
   logging.info("Model checkpoint downloaded to: {}".format(download_dir))
-  model = os.path.join(download_dir, 'snapshots/network')
+  model = os.path.join(download_dir, f'snapshots/{dir}')
   loaded_network = tf.saved_model.load(model)
   return loaded_network
 

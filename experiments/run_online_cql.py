@@ -6,12 +6,10 @@ import wandb
 
 from absl import app, flags, logging
 
-from acme import specs
-
+import networks
 from cql.agent import CQL
 from acme.utils import counting
 from acme import EnvironmentLoop
-import sonnet as snt
 
 from utils import _build_environment, _build_custom_loggers
 from visualization import evaluate_q, visualize_policy
@@ -61,12 +59,9 @@ def main(_):
   wb_run = init_or_resume()
 
   # Create an environment and grab the spec.
-  environment, environment_spec = _build_environment(FLAGS.environment_name, max_steps=FLAGS.ep_max_len)
+  environment, env_spec = _build_environment(FLAGS.environment_name, max_steps=FLAGS.ep_max_len)
 
-  network = snt.Sequential([
-      snt.Flatten(),
-      snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]) # TODO: try sigmoid
-  ])
+  network = networks.get_default_critic(env_spec)
 
   disp, disp_loop = _build_custom_loggers(wb_run)
 
@@ -74,7 +69,7 @@ def main(_):
 
   # Construct the agent.
   agent = CQL(
-      environment_spec=environment_spec,
+      environment_spec=env_spec,
       network=network,
       n_step=FLAGS.n_step_returns,
       epsilon=FLAGS.epsilon,

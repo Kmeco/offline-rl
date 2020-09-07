@@ -10,9 +10,9 @@ from acme.agents.tf import actors
 
 from acme import EnvironmentLoop
 from acme.utils import counting
-from acme import specs
 import wandb
 
+import networks
 import trfl
 import tensorflow as tf
 import sonnet as snt
@@ -89,10 +89,7 @@ def main(_):
                                  FLAGS.discount)
 
     # Create the main critic network
-    critic_network = snt.Sequential([
-      snt.Flatten(),
-      snt.nets.MLP([128, 64, 32, env_spec.actions.num_values])
-    ])
+    critic_network = networks.get_default_critic(env_spec)
 
     policy_network = snt.Sequential([
         critic_network,

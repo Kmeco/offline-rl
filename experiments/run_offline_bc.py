@@ -12,6 +12,7 @@ from acme.agents.tf import actors
 from acme.environment_loop import EnvironmentLoop
 from acme.utils import counting
 
+import networks
 import tensorflow as tf
 import sonnet as snt
 from utils import load_tf_dataset, _build_environment, _build_custom_loggers, \
@@ -26,7 +27,7 @@ import wandb
 flags.DEFINE_string('environment_name', 'MiniGrid-Empty-6x6-v0', 'MiniGrid env name.')
 flags.DEFINE_string('logs_dir', 'logs-CQL-0', 'TB logs directory')
 flags.DEFINE_string('logs_tag', 'tag', 'Tag a specific run for logging in TB.')
-flags.DEFINE_boolean('wandb', False, 'Whether to log results to wandb.')
+flags.DEFINE_boolean('wandb', True, 'Whether to log results to wandb.')
 flags.DEFINE_string('wandb_id', '', 'Specific wandb id if you wish to continue in a checkpoint.')
 
 flags.DEFINE_string('dataset_dir', 'datasets', 'Directory containing an offline dataset.')
@@ -91,10 +92,7 @@ def main(_):
                                FLAGS.discount)
 
   # Create the policy and critic networks.
-  policy_network = snt.Sequential([
-    snt.Flatten(),
-    snt.nets.MLP([128, 64, 32, environment_spec.actions.num_values]),
-  ])
+  policy_network = networks.get_default_critic(env_spec)
 
   # Ensure that we create the variables before proceeding (maybe not needed).
   tf2_utils.create_variables(policy_network, [environment_spec.observations])
