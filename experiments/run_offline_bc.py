@@ -80,11 +80,10 @@ def main(_):
     tf.random.set_seed(FLAGS.seed)
 
   # Create an environment and grab the spec.
-  environment, environment_spec = _build_environment(FLAGS.environment_name)
+  environment, env_spec = _build_environment(FLAGS.environment_name)
 
   # Load demonstration dataset.
   raw_dataset = load_tf_dataset(directory=FLAGS.dataset_dir)
-  empirical_policy = compute_empirical_policy(raw_dataset)
 
   dataset = preprocess_dataset(raw_dataset,
                                FLAGS.batch_size,
@@ -95,7 +94,7 @@ def main(_):
   policy_network = networks.get_default_critic(env_spec)
 
   # Ensure that we create the variables before proceeding (maybe not needed).
-  tf2_utils.create_variables(policy_network, [environment_spec.observations])
+  tf2_utils.create_variables(policy_network, [env_spec.observations])
 
   # If the agent is non-autoregressive use epsilon=0 which will be a greedy
   # policy.
