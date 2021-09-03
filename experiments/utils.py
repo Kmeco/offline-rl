@@ -289,9 +289,20 @@ def preprocess_dataset(dataset: tf.data.Dataset, batch_size: int, n_step_returns
   return dataset
 
 
-def load_wb_model(model_name: str, model_tag: str, dir:str='network'):
+def load_wb_model(model_name: str, model_tag: str, dir: str = 'network', wandb_project_path: str = WANDB_PROJECT_PATH):
+  """
+  Load a model from wandb artifact by providing the model name and tag.
+  Args:
+      model_name: name used to save the model - default is `acme_checkpoint`
+      model_tag: this is the version of the model to be loaded in the form of v1, v2, etc...
+      dir: local directory where the checkpoint should be downloaded
+      wandb_project_path: path to the wandb project used
+
+  Returns:
+      loaded_network: tf model that can be used for inference
+  """
   wb_run = wandb.init()
-  wb_path = WANDB_PROJECT_PATH.format(model_name, model_tag)
+  wb_path = wandb_project_path.format(model_name, model_tag)
   logging.info("Downloading model artifact from: " + wb_path)
   artifact = wb_run.use_artifact(wb_path, type='model')
   download_dir = artifact.download()
